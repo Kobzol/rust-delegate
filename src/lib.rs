@@ -438,7 +438,7 @@ macro_rules! delegate__parse {
 
     {
         state: parse_method_args_self,
-        buffer: { & mut $self:tt $($rest:tt)* },
+        buffer: { & $lifetime:tt mut $self:tt, $($rest:tt)+ },
         stack: {
             signature_args: {},
             invoke_args: {},
@@ -450,8 +450,86 @@ macro_rules! delegate__parse {
         delegate__ensure_self!($self);
 
         delegate__parse! {
-            state: parse_method_args_consume_possible_comma,
+            state: parse_method_args_rest,
             buffer: { $($rest)* },
+            stack: {
+                signature_args: { & $lifetime mut $self , },
+                invoke_args: {},
+                signature: $signature,
+                body: { $self . $($body)* },
+                $($stack)*
+            }
+        }
+    };
+
+    {
+        state: parse_method_args_self,
+        buffer: { & $lifetime:tt mut $self:tt },
+        stack: {
+            signature_args: {},
+            invoke_args: {},
+            signature: $signature:tt,
+            body: { $($body:tt)* },
+            $($stack:tt)*
+        }
+    } => {
+        delegate__ensure_self!($self);
+
+        delegate__parse! {
+            state: parse_method_args_rest,
+            buffer: {},
+            stack: {
+                signature_args: { & $lifetime mut $self },
+                invoke_args: {},
+                signature: $signature,
+                body: { $self . $($body)* },
+                $($stack)*
+            }
+        }
+    };
+
+    {
+        state: parse_method_args_self,
+        buffer: { & mut $self:tt, $($rest:tt)+ },
+        stack: {
+            signature_args: {},
+            invoke_args: {},
+            signature: $signature:tt,
+            body: { $($body:tt)* },
+            $($stack:tt)*
+        }
+    } => {
+        delegate__ensure_self!($self);
+
+        delegate__parse! {
+            state: parse_method_args_rest,
+            buffer: { $($rest)* },
+            stack: {
+                signature_args: { & mut $self , },
+                invoke_args: {},
+                signature: $signature,
+                body: { $self . $($body)* },
+                $($stack)*
+            }
+        }
+    };
+
+    {
+        state: parse_method_args_self,
+        buffer: { & mut $self:tt },
+        stack: {
+            signature_args: {},
+            invoke_args: {},
+            signature: $signature:tt,
+            body: { $($body:tt)* },
+            $($stack:tt)*
+        }
+    } => {
+        delegate__ensure_self!($self);
+
+        delegate__parse! {
+            state: parse_method_args_rest,
+            buffer: {},
             stack: {
                 signature_args: { & mut $self },
                 invoke_args: {},
@@ -464,7 +542,7 @@ macro_rules! delegate__parse {
 
     {
         state: parse_method_args_self,
-        buffer: { & $self:tt $($rest:tt)* },
+        buffer: { & $lifetime:tt $self:tt, $($rest:tt)+ },
         stack: {
             signature_args: {},
             invoke_args: {},
@@ -476,8 +554,86 @@ macro_rules! delegate__parse {
         delegate__ensure_self!($self);
 
         delegate__parse! {
-            state: parse_method_args_consume_possible_comma,
+            state: parse_method_args_rest,
             buffer: { $($rest)* },
+            stack: {
+                signature_args: { & $lifetime $self , },
+                invoke_args: {},
+                signature: $signature,
+                body: { $self . $($body)* },
+                $($stack)*
+            }
+        }
+    };
+
+    {
+        state: parse_method_args_self,
+        buffer: { & $lifetime:tt $self:tt },
+        stack: {
+            signature_args: {},
+            invoke_args: {},
+            signature: $signature:tt,
+            body: { $($body:tt)* },
+            $($stack:tt)*
+        }
+    } => {
+        delegate__ensure_self!($self);
+
+        delegate__parse! {
+            state: parse_method_args_rest,
+            buffer: {},
+            stack: {
+                signature_args: { & $lifetime $self },
+                invoke_args: {},
+                signature: $signature,
+                body: { $self . $($body)* },
+                $($stack)*
+            }
+        }
+    };
+
+    {
+        state: parse_method_args_self,
+        buffer: { & $self:tt, $($rest:tt)+ },
+        stack: {
+            signature_args: {},
+            invoke_args: {},
+            signature: $signature:tt,
+            body: { $($body:tt)* },
+            $($stack:tt)*
+        }
+    } => {
+        delegate__ensure_self!($self);
+
+        delegate__parse! {
+            state: parse_method_args_rest,
+            buffer: { $($rest)* },
+            stack: {
+                signature_args: { & $self , },
+                invoke_args: {},
+                signature: $signature,
+                body: { $self . $($body)* },
+                $($stack)*
+            }
+        }
+    };
+
+    {
+        state: parse_method_args_self,
+        buffer: { & $self:tt },
+        stack: {
+            signature_args: {},
+            invoke_args: {},
+            signature: $signature:tt,
+            body: { $($body:tt)* },
+            $($stack:tt)*
+        }
+    } => {
+        delegate__ensure_self!($self);
+
+        delegate__parse! {
+            state: parse_method_args_rest,
+            buffer: {},
             stack: {
                 signature_args: { & $self },
                 invoke_args: {},
@@ -490,7 +646,7 @@ macro_rules! delegate__parse {
 
     {
         state: parse_method_args_self,
-        buffer: { $self:tt $($rest:tt)* },
+        buffer: { $self:tt, $($rest:tt)+ },
         stack: {
             signature_args: {},
             invoke_args: {},
@@ -502,10 +658,10 @@ macro_rules! delegate__parse {
         delegate__ensure_self!($self);
 
         delegate__parse! {
-            state: parse_method_args_consume_possible_comma,
+            state: parse_method_args_rest,
             buffer: { $($rest)* },
             stack: {
-                signature_args: { $self },
+                signature_args: { $self , },
                 invoke_args: {},
                 signature: $signature,
                 body: { $self . $($body)* },
@@ -514,35 +670,29 @@ macro_rules! delegate__parse {
         }
     };
 
-    // state: parse_method_args_consume_possible_comma
-
     {
-        state: parse_method_args_consume_possible_comma,
-        buffer: { , $($rest:tt)+ },
+        state: parse_method_args_self,
+        buffer: { $self:tt },
         stack: {
-            signature_args: { $($signature_args:tt)* },
+            signature_args: {},
+            invoke_args: {},
+            signature: $signature:tt,
+            body: { $($body:tt)* },
             $($stack:tt)*
         }
     } => {
-        delegate__parse! {
-            state: parse_method_args_rest,
-            buffer: { $($rest)* },
-            stack: {
-                signature_args: { $($signature_args)* , },
-                $($stack)*
-            }
-        }
-    };
+        delegate__ensure_self!($self);
 
-    {
-        state: parse_method_args_consume_possible_comma,
-        buffer: {},
-        stack: $stack:tt
-    } => {
         delegate__parse! {
             state: parse_method_args_rest,
             buffer: {},
-            stack: $stack
+            stack: {
+                signature_args: { $self },
+                invoke_args: {},
+                signature: $signature,
+                body: { $self . $($body)* },
+                $($stack)*
+            }
         }
     };
 
@@ -743,12 +893,12 @@ mod tests {
         };
 
         {
-            { ( & self $(, $name:ident : $type:ty)* ) $($rest:tt)* }
+            { ( & $lifetime:tt mut self $(, $name:ident : $type:ty)* ) $($rest:tt)* }
             { $($tokens:tt)* }
         } => {
             stringify_tokens! {
                 { $($rest)* }
-                { $($tokens)* ( & self $(, $name : $type)* ) }
+                { $($tokens)* ( & $lifetime mut self $(, $name : $type)* ) }
             }
         };
 
@@ -759,6 +909,26 @@ mod tests {
             stringify_tokens! {
                 { $($rest)* }
                 { $($tokens)* ( & mut self $(, $name : $type)* ) }
+            }
+        };
+
+        {
+            { ( & $lifetime:tt self $(, $name:ident : $type:ty)* ) $($rest:tt)* }
+            { $($tokens:tt)* }
+        } => {
+            stringify_tokens! {
+                { $($rest)* }
+                { $($tokens)* ( & $lifetime self $(, $name : $type)* ) }
+            }
+        };
+
+        {
+            { ( & self $(, $name:ident : $type:ty)* ) $($rest:tt)* }
+            { $($tokens:tt)* }
+        } => {
+            stringify_tokens! {
+                { $($rest)* }
+                { $($tokens)* ( & self $(, $name : $type)* ) }
             }
         };
 
@@ -1055,6 +1225,10 @@ mod tests {
                     fn test_borrow_self_with_one_arg(&self, first: i32);
 
                     fn test_borrow_self_with_multi_args(&self, first: i32, second: &str, third: bool);
+
+                    fn test_borrow_self_with_lifetime<'a>(&'a self);
+
+                    fn test_borrow_self_with_lifetime_multi_args<'a, 'b, 'c, 'd>(&'a self, first: &'b str, second: &'c str, third: &'d str);
                 }
             },
 
@@ -1073,6 +1247,16 @@ mod tests {
                 fn test_borrow_self_with_multi_args(&self, first: i32, second: &str, third: bool) {
                     self.inner.test_borrow_self_with_multi_args(first, second, third)
                 }
+
+                #[inline]
+                fn test_borrow_self_with_lifetime<'a>(&'a self) {
+                    self.inner.test_borrow_self_with_lifetime()
+                }
+
+                #[inline]
+                fn test_borrow_self_with_lifetime_multi_args<'a, 'b, 'c, 'd>(&'a self, first: &'b str, second: &'c str, third: &'d str) {
+                    self.inner.test_borrow_self_with_lifetime_multi_args(first, second, third)
+                }
             }
         }
     }
@@ -1086,7 +1270,11 @@ mod tests {
 
                     fn test_borrow_mut_self_with_one_arg(&mut self, first: i32);
 
-                    fn test_borrow_mut_self_with_multi_args(&mut self, first: i32, second: &str, third: bool);
+                    fn test_borrow_mut_self_with_multi_args(&mut self, first: i32, second: &mut str, third: bool);
+
+                    fn test_borrow_mut_self_with_lifetime<'a>(&'a mut self);
+
+                    fn test_borrow_mut_self_with_lifetime_multi_args<'a, 'b, 'c, 'd>(&'a mut self, first: &'b mut str, second: &'c mut str, third: &'d mut str);
                 }
             },
 
@@ -1102,8 +1290,18 @@ mod tests {
                 }
 
                 #[inline]
-                fn test_borrow_mut_self_with_multi_args(&mut self, first: i32, second: &str, third: bool) {
+                fn test_borrow_mut_self_with_multi_args(&mut self, first: i32, second: &mut str, third: bool) {
                     self.inner.test_borrow_mut_self_with_multi_args(first, second, third)
+                }
+
+                #[inline]
+                fn test_borrow_mut_self_with_lifetime<'a>(&'a mut self) {
+                    self.inner.test_borrow_mut_self_with_lifetime()
+                }
+
+                #[inline]
+                fn test_borrow_mut_self_with_lifetime_multi_args<'a, 'b, 'c, 'd>(&'a mut self, first: &'b mut str, second: &'c mut str, third: &'d mut str) {
+                    self.inner.test_borrow_mut_self_with_lifetime_multi_args(first, second, third)
                 }
             }
         }
