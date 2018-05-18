@@ -250,6 +250,27 @@ macro_rules! delegate__parse {
 
     {
         state: parse_method_name,
+        buffer: { $name:ident < $($rest:tt)* },
+        stack: {
+            signature: { $($signature:tt)* },
+            body: { $($body:tt)* },
+            $($stack:tt)*
+        }
+    } => {
+        delegate__parse! {
+            state: parse_method_generics,
+            buffer: { $($rest)* },
+            stack: {
+                depth: {},
+                signature: { $($signature)* $name < },
+                body: { $($body)* . $name },
+                $($stack)*
+            }
+        }
+    };
+
+    {
+        state: parse_method_name,
         buffer: { $name:ident $($rest:tt)* },
         stack: {
             signature: { $($signature:tt)* },
@@ -263,6 +284,126 @@ macro_rules! delegate__parse {
             stack: {
                 signature: { $($signature)* $name },
                 body: { $($body)* . $name },
+                $($stack)*
+            }
+        }
+    };
+
+    // state: parse_method_generics
+
+    {
+        state: parse_method_generics,
+        buffer: { < $($rest:tt)* },
+        stack: {
+            depth: { $($depth:tt)* },
+            signature: { $($signature:tt)* },
+            $($stack:tt)*
+        }
+    } => {
+        delegate__parse! {
+            state: parse_method_generics,
+            buffer: { $($rest)* },
+            stack: {
+                depth: { { $($depth)* } },
+                signature: { $($signature)* < },
+                $($stack)*
+            }
+        }
+    };
+
+    {
+        state: parse_method_generics,
+        buffer: { > $($rest:tt)* },
+        stack: {
+            depth: { { $($depth:tt)* } },
+            signature: { $($signature:tt)* },
+            $($stack:tt)*
+        }
+    } => {
+        delegate__parse! {
+            state: parse_method_generics,
+            buffer: { $($rest)* },
+            stack: {
+                depth: { $($depth)* },
+                signature: { $($signature)* > },
+                $($stack)*
+            }
+        }
+    };
+
+    {
+        state: parse_method_generics,
+        buffer: { > $($rest:tt)* },
+        stack: {
+            depth: {},
+            signature: { $($signature:tt)* },
+            $($stack:tt)*
+        }
+    } => {
+        delegate__parse! {
+            state: parse_method_args,
+            buffer: { $($rest)* },
+            stack: {
+                signature: { $($signature)* > },
+                $($stack)*
+            }
+        }
+    };
+
+    {
+        state: parse_method_generics,
+        buffer: { >> $($rest:tt)* },
+        stack: {
+            depth: { { { $($depth:tt)* } } },
+            signature: { $($signature:tt)* },
+            $($stack:tt)*
+        }
+    } => {
+        delegate__parse! {
+            state: parse_method_generics,
+            buffer: { $($rest)* },
+            stack: {
+                depth: { $($depth)* },
+                signature: { $($signature)* > > },
+                $($stack)*
+            }
+        }
+    };
+
+    {
+        state: parse_method_generics,
+        buffer: { >> $($rest:tt)* },
+        stack: {
+            depth: { {} },
+            signature: { $($signature:tt)* },
+            $($stack:tt)*
+        }
+    } => {
+        delegate__parse! {
+            state: parse_method_args,
+            buffer: { $($rest)* },
+            stack: {
+                signature: { $($signature)* > > },
+                $($stack)*
+            }
+        }
+    };
+
+    {
+        state: parse_method_generics,
+        buffer: { $next:tt $($rest:tt)* },
+        stack: {
+            depth: $depth:tt,
+            signature: { $($signature:tt)* },
+            $($stack:tt)*
+        }
+    } => {
+        delegate__parse! {
+            state: parse_method_generics,
+            buffer: { $($rest)* },
+            stack: {
+                depth: $depth,
+                signature: { $($signature)* $next },
                 $($stack)*
             }
         }
@@ -632,6 +773,16 @@ mod tests {
         };
 
         {
+            { >> $($rest:tt)* }
+            { $($tokens:tt)* }
+        } => {
+            stringify_tokens! {
+                { $($rest)* }
+                { $($tokens)* > > }
+            }
+        };
+
+        {
             { $next:tt $($rest:tt)* }
             { $($tokens:tt)* }
         } => {
@@ -959,6 +1110,87 @@ mod tests {
     }
 
     #[test]
+    fn test_generics() {
+        assert_delegation! {
+            {
+                target self.inner {
+                    fn test_empty_generic<>(self);
+
+                    fn test_single_generic<T>(self, first: T);
+
+                    fn test_multiple_generics<T, U, V>(self, first: T, second: U, third: V);
+
+                    fn test_single_generic_with_bound<T: Display>(self, first: T);
+
+                    fn test_multiple_generics_with_bounds<T: Display, U, V: Debug>(self, first: T, second: U, third: V);
+
+                    fn test_single_lifetime_generic<'a>(&self, first: &'a str);
+
+                    fn test_multiple_lifetime_generics<'a, 'b, 'c, T, U, V>(&self, first: &'a T, second: &'b U, third: &'c V);
+
+                    fn test_single_nested_generic<T: Some<Generic<Trait<()>>>>(self, first: T);
+
+                    fn test_multiple_nested_generics<T, U: Some<Generic<Trait<T>>>, V: Some<Other<Trait<T>>>>(self, first: T, second: U, third: V);
+
+                    fn test_complex_generics<T, U: ?Sized + Clone + Copy + for<'a> From<&'a U>>(self, first: T, second: U);
+                }
+            },
+
+            {
+                #[inline]
+                fn test_empty_generic<>(self) {
+                    self.inner.test_empty_generic()
+                }
+
+                #[inline]
+                fn test_single_generic<T>(self, first: T) {
+                    self.inner.test_single_generic(first)
+                }
+
+                #[inline]
+                fn test_multiple_generics<T, U, V>(self, first: T, second: U, third: V) {
+                    self.inner.test_multiple_generics(first, second, third)
+                }
+
+                #[inline]
+                fn test_single_generic_with_bound<T: Display>(self, first: T) {
+                    self.inner.test_single_generic_with_bound(first)
+                }
+
+                #[inline]
+                fn test_multiple_generics_with_bounds<T: Display, U, V: Debug>(self, first: T, second: U, third: V) {
+                    self.inner.test_multiple_generics_with_bounds(first, second, third)
+                }
+
+                #[inline]
+                fn test_single_lifetime_generic<'a>(&self, first: &'a str) {
+                    self.inner.test_single_lifetime_generic(first)
+                }
+
+                #[inline]
+                fn test_multiple_lifetime_generics<'a, 'b, 'c, T, U, V>(&self, first: &'a T, second: &'b U, third: &'c V) {
+                    self.inner.test_multiple_lifetime_generics(first, second, third)
+                }
+
+                #[inline]
+                fn test_single_nested_generic<T: Some<Generic<Trait<()>>>>(self, first: T) {
+                    self.inner.test_single_nested_generic(first)
+                }
+
+                #[inline]
+                fn test_multiple_nested_generics<T, U: Some<Generic<Trait<T>>>, V: Some<Other<Trait<T>>>>(self, first: T, second: U, third: V) {
+                    self.inner.test_multiple_nested_generics(first, second, third)
+                }
+
+                #[inline]
+                fn test_complex_generics<T, U: ?Sized + Clone + Copy + for<'a> From<&'a U>>(self, first: T, second: U) {
+                    self.inner.test_complex_generics(first, second)
+                }
+            }
+        }
+    }
+
+    #[test]
     fn test_return() {
         assert_delegation! {
             {
@@ -968,6 +1200,10 @@ mod tests {
                     fn test_simple_return(self) -> ();
 
                     fn test_complex_return(&self) -> &Vec<i32>;
+
+                    fn test_generic_return<T>(self) -> T;
+
+                    fn test_generic_lifetime_return<'a, T>(&self, first: &'a Vec<T>) -> &'a T;
                 }
             },
 
@@ -985,6 +1221,16 @@ mod tests {
                 #[inline]
                 fn test_complex_return(&self) -> &Vec<i32> {
                     self.inner.test_complex_return()
+                }
+
+                #[inline]
+                fn test_generic_return<T>(self) -> T {
+                    self.inner.test_generic_return()
+                }
+
+                #[inline]
+                fn test_generic_lifetime_return<'a, T>(&self, first: &'a Vec<T>) -> &'a T {
+                    self.inner.test_generic_lifetime_return(first)
                 }
             }
         }
