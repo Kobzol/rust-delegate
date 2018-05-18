@@ -804,7 +804,7 @@ macro_rules! delegate__parse {
     } => {
         delegate__parse! {
             state: parse_method_end,
-            buffer: { $($rest)* },
+            buffer: { ; $($rest)* },
             stack: {
                 signature: { $($signature)* -> $ret },
                 $($stack)*
@@ -814,12 +814,102 @@ macro_rules! delegate__parse {
 
     {
         state: parse_method_return,
+        buffer: { -> $ret:ty where $($rest:tt)* },
+        stack: {
+            signature: { $($signature:tt)* },
+            $($stack:tt)*
+        }
+    } => {
+        delegate__parse! {
+            state: parse_method_where_clause,
+            buffer: { where $($rest)* },
+            stack: {
+                signature: { $($signature)* -> $ret },
+                $($stack)*
+            }
+        }
+    };
+
+    {
+        state: parse_method_return,
+        buffer: $buffer:tt,
+        stack: $stack:tt
+    } => {
+        delegate__parse! {
+            state: parse_method_where_clause,
+            buffer: $buffer,
+            stack: $stack
+        }
+    };
+
+    // state: parse_method_where_clause
+
+    {
+        state: parse_method_where_clause,
+        buffer: { where $($rest:tt)* },
+        stack: {
+            signature: { $($signature:tt)* },
+            $($stack:tt)*
+        }
+    } => {
+        delegate__parse! {
+            state: parse_method_where_clause,
+            buffer: { $($rest)* },
+            stack: {
+                where: { where },
+                signature: { $($signature)* },
+                $($stack)*
+            }
+        }
+    };
+
+    {
+        state: parse_method_where_clause,
         buffer: { ; $($rest:tt)* },
+        stack: {
+            where: { $($where:tt)* },
+            signature: { $($signature:tt)* },
+            $($stack:tt)*
+        }
+    } => {
+        delegate__parse! {
+            state: parse_method_end,
+            buffer: { ; $($rest)* },
+            stack: {
+                signature: { $($signature)* $($where)* },
+                $($stack)*
+            }
+        }
+    };
+
+    {
+        state: parse_method_where_clause,
+        buffer: { $token:tt $($rest:tt)* },
+        stack: {
+            where: { $($where:tt)* },
+            signature: { $($signature:tt)* },
+            $($stack:tt)*
+        }
+    } => {
+        delegate__parse! {
+            state: parse_method_where_clause,
+            buffer: { $($rest)* },
+            stack: {
+                where: { $($where)* $token },
+                signature: { $($signature)* },
+                $($stack)*
+            }
+        }
+    };
+
+    {
+        state: parse_method_where_clause,
+        buffer: $buffer:tt,
         stack: $stack:tt
     } => {
         delegate__parse! {
             state: parse_method_end,
-            buffer: { $($rest)* },
+            buffer: $buffer,
             stack: $stack
         }
     };
@@ -828,7 +918,7 @@ macro_rules! delegate__parse {
 
     {
         state: parse_method_end,
-        buffer: $buffer:tt,
+        buffer: { ; $($rest:tt)* },
         stack: {
             signature: { $($signature:tt)* },
             body: { $($body:tt)* },
@@ -839,7 +929,7 @@ macro_rules! delegate__parse {
     } => {
         delegate__parse! {
             state: parse_methods,
-            buffer: $buffer,
+            buffer: { $($rest)* },
             stack: {
                 target: $target,
                 items: [
@@ -1491,6 +1581,57 @@ mod tests {
                 #[inline]
                 fn test_generic_lifetime_return<'a, T>(&self, first: &'a Vec<T>) -> &'a T {
                     self.inner.test_generic_lifetime_return(first)
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_where_clause() {
+        assert_delegation! {
+            {
+                target self.inner {
+                    fn test_simple_where_clause<T>(self, first: T) where T: Display;
+
+                    fn test_simple_where_clause_with_return<T>(self) -> T where T: Display;
+
+                    fn test_complex_where_clause<T, U, V>(self, first: T, second: U, third: V)
+                        where T: SomeTrait + AnotherTrait,
+                              U: Yet<T> + AnotherTrait,
+                              V: StillAnotherTrait<T, U>;
+
+                    fn test_complex_where_clause_with_return<T, U, V>(self) -> V
+                        where T: SomeTrait + AnotherTrait,
+                              U: Yet<T> + AnotherTrait,
+                              V: StillAnotherTrait<T, U>;
+                }
+            },
+
+            {
+                #[inline]
+                fn test_simple_where_clause<T>(self, first: T) where T: Display {
+                    self.inner.test_simple_where_clause(first)
+                }
+
+                #[inline]
+                fn test_simple_where_clause_with_return<T>(self) -> T where T: Display {
+                    self.inner.test_simple_where_clause_with_return()
+                }
+
+                #[inline]
+                fn test_complex_where_clause<T, U, V>(self, first: T, second: U, third: V)
+                        where T: SomeTrait + AnotherTrait,
+                              U: Yet<T> + AnotherTrait,
+                              V: StillAnotherTrait<T, U> {
+                    self.inner.test_complex_where_clause(first, second, third)
+                }
+
+                #[inline]
+                fn test_complex_where_clause_with_return<T, U, V>(self) -> V
+                    where T: SomeTrait + AnotherTrait,
+                          U: Yet<T> + AnotherTrait,
+                          V: StillAnotherTrait<T, U> {
+                    self.inner.test_complex_where_clause_with_return()
                 }
             }
         }
