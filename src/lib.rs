@@ -11,11 +11,17 @@ macro_rules! delegate {
             buffer: { $($rest)* },
             stack: {
                 items: [],
-                action: expand
+                action: delegate__expand
             }
         }
     };
 
+}
+
+#[macro_export]
+#[doc(hidden)]
+macro_rules! delegate__expand {
+    { $($tokens:tt)* } => { $($tokens)* };
 }
 
 #[macro_export]
@@ -29,21 +35,10 @@ macro_rules! delegate__parse {
         buffer: {},
         stack: {
             items: [ $($items:tt)* ],
-            action: expand
+            action: $action:tt
         }
     } => {
-        $($items)*
-    };
-
-    {
-        state: top_level,
-        buffer: {},
-        stack: {
-            items: [ $($items:tt)* ],
-            action: stringify
-        }
-    } => {
-        stringify!($($items)*)
+        $action ! { $($items)* }
     };
 
     {
