@@ -1,3 +1,5 @@
+#![recursion_limit="128"]
+
 #[macro_use]
 extern crate delegate;
 
@@ -18,13 +20,12 @@ impl<T> Stack<T> {
             pub fn pop(&mut self) -> Option<T>;
             pub fn clear(&mut self);
 
+            #[target_method(last)]
+            pub fn peek(&self) -> Option<&T>;
+
             #[doc(hidden)]
             pub fn into_boxed_slice(self) -> Box<[T]>;
         }
-    }
-
-    pub fn peek(&self) -> Option<&T> {
-        self.inner.last()
     }
 }
 

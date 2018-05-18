@@ -114,7 +114,7 @@ macro_rules! delegate__parse {
             state: parse_method_attributes,
             buffer: $buffer,
             stack: {
-                signature: { #[inline] },
+                signature: { #[default_target_method] #[inline] },
                 body: { $target },
                 target: $target,
                 $($stack)*
@@ -126,9 +126,9 @@ macro_rules! delegate__parse {
 
     {
         state: parse_method_attributes,
-        buffer: { #[inline $($inline:tt)*] $($rest:tt)* },
+        buffer: { #[target_method($target_method:ident)] $($rest:tt)* },
         stack: {
-            signature: { #[inline] $($signature:tt)* },
+            signature: { #[default_target_method] $($signature:tt)* },
             $($stack:tt)*
         }
     } => {
@@ -136,7 +136,25 @@ macro_rules! delegate__parse {
             state: parse_method_attributes,
             buffer: { $($rest)* },
             stack: {
-                signature: { $($signature)* #[inline $($inline)*] },
+                signature: { #[target_method($target_method)] $($signature)* },
+                $($stack)*
+            }
+        }
+    };
+
+    {
+        state: parse_method_attributes,
+        buffer: { #[inline $($inline:tt)*] $($rest:tt)* },
+        stack: {
+            signature: { #[$($target_method:tt)*] #[inline] $($signature:tt)* },
+            $($stack:tt)*
+        }
+    } => {
+        delegate__parse! {
+            state: parse_method_attributes,
+            buffer: { $($rest)* },
+            stack: {
+                signature: { #[$($target_method)*] $($signature)* #[inline $($inline)*] },
                 $($stack)*
             }
         }
@@ -250,9 +268,9 @@ macro_rules! delegate__parse {
 
     {
         state: parse_method_name,
-        buffer: { $name:ident < $($rest:tt)* },
+        buffer: { $name:ident $($rest:tt)* },
         stack: {
-            signature: { $($signature:tt)* },
+            signature: { #[default_target_method] $($signature:tt)* },
             body: { $($body:tt)* },
             $($stack:tt)*
         }
@@ -262,7 +280,7 @@ macro_rules! delegate__parse {
             buffer: { $($rest)* },
             stack: {
                 depth: {},
-                signature: { $($signature)* $name < },
+                signature: { $($signature)* $name },
                 body: { $($body)* . $name },
                 $($stack)*
             }
@@ -273,17 +291,18 @@ macro_rules! delegate__parse {
         state: parse_method_name,
         buffer: { $name:ident $($rest:tt)* },
         stack: {
-            signature: { $($signature:tt)* },
+            signature: { #[target_method($target_method:ident)] $($signature:tt)* },
             body: { $($body:tt)* },
             $($stack:tt)*
         }
     } => {
         delegate__parse! {
-            state: parse_method_args,
+            state: parse_method_generics,
             buffer: { $($rest)* },
             stack: {
+                depth: {},
                 signature: { $($signature)* $name },
-                body: { $($body)* . $name },
+                body: { $($body)* . $target_method },
                 $($stack)*
             }
         }
@@ -315,7 +334,7 @@ macro_rules! delegate__parse {
         state: parse_method_generics,
         buffer: { > $($rest:tt)* },
         stack: {
-            depth: { { $($depth:tt)* } },
+            depth: { { $($depth:tt)+ } },
             signature: { $($signature:tt)* },
             $($stack:tt)*
         }
@@ -335,7 +354,7 @@ macro_rules! delegate__parse {
         state: parse_method_generics,
         buffer: { > $($rest:tt)* },
         stack: {
-            depth: {},
+            depth: { {} },
             signature: { $($signature:tt)* },
             $($stack:tt)*
         }
@@ -354,7 +373,7 @@ macro_rules! delegate__parse {
         state: parse_method_generics,
         buffer: { >> $($rest:tt)* },
         stack: {
-            depth: { { { $($depth:tt)* } } },
+            depth: { { { $($depth:tt)+ } } },
             signature: { $($signature:tt)* },
             $($stack:tt)*
         }
@@ -374,7 +393,7 @@ macro_rules! delegate__parse {
         state: parse_method_generics,
         buffer: { >> $($rest:tt)* },
         stack: {
-            depth: { {} },
+            depth: { { {} } },
             signature: { $($signature:tt)* },
             $($stack:tt)*
         }
@@ -384,6 +403,23 @@ macro_rules! delegate__parse {
             buffer: { $($rest)* },
             stack: {
                 signature: { $($signature)* > > },
+                $($stack)*
+            }
+        }
+    };
+
+    {
+        state: parse_method_generics,
+        buffer: $buffer:tt,
+        stack: {
+            depth: {},
+            $($stack:tt)*
+        }
+    } => {
+        delegate__parse! {
+            state: parse_method_args,
+            buffer: $buffer,
+            stack: {
                 $($stack)*
             }
         }
@@ -1061,6 +1097,37 @@ mod tests {
                 #[allow(non_snake_case)]
                 fn testAllTheAttributes(self) {
                     self.inner.testAllTheAttributes()
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_target_method() {
+        assert_delegation! {
+            {
+                target self.inner {
+                    #[target_method(something_else)]
+                    fn test_target_method(self);
+
+                    #[before]
+                    #[target_method(something_else)]
+                    #[after]
+                    fn test_target_method_with_attributes(self);
+                }
+            },
+
+            {
+                #[inline]
+                fn test_target_method(self) {
+                    self.inner.something_else()
+                }
+
+                #[inline]
+                #[before]
+                #[after]
+                fn test_target_method_with_attributes(self) {
+                    self.inner.something_else()
                 }
             }
         }
