@@ -57,7 +57,7 @@ macro_rules! delegate__parse {
 
     {
         state: parse_target,
-        buffer: { target self . $field:ident { $($methods:tt)* } $($rest:tt)* },
+        buffer: { target self . $field:tt { $($methods:tt)* } $($rest:tt)* },
         stack: {
             items: $items:tt,
             $($stack:tt)*
@@ -1699,6 +1699,14 @@ mod tests {
     fn test_multiple_targets() {
         assert_delegation! {
             {
+                target self.0 {
+                    fn test_zero(self);
+                }
+
+                target self.999 {
+                    fn test_nine_nine_nine(self);
+                }
+
                 target self.first {
                     fn test_first_a(self);
                     fn test_first_b(self);
@@ -1716,6 +1724,16 @@ mod tests {
             },
 
             {
+                #[inline]
+                fn test_zero(self) {
+                    self.0.test_zero()
+                }
+
+                #[inline]
+                fn test_nine_nine_nine(self) {
+                    self.999.test_nine_nine_nine()
+                }
+
                 #[inline]
                 fn test_first_a(self) {
                     self.first.test_first_a()
