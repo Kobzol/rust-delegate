@@ -1,9 +1,10 @@
 [package]
 name = "delegate"
 description = "Method delegation with less boilerplate"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Godfrey Chan <godfreykfc@gmail.com>"]
-repository = "https://github.com/sfackler/rust-postgres-macros"
+repository = "https://github.com/chancancode/rust-delegate"
+readme = "README.md"
 license = "MIT OR Apache-2.0"
 
 [dependencies]
