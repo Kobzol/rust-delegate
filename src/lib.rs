@@ -368,36 +368,17 @@ macro_rules! delegate__parse {
         state: parse_method_generics,
         buffer: { >> $($rest:tt)* },
         stack: {
-            depth: { { { $($depth:tt)+ } } },
+            depth: { { { $($depth:tt)* } } },
             signature: { $($signature:tt)* },
             $($stack:tt)*
         }
     } => {
         delegate__parse! {
             state: parse_method_generics,
-            buffer: { $($rest)* },
+            buffer: { > $($rest)* },
             stack: {
-                depth: { $($depth)* },
-                signature: { $($signature)* > > },
-                $($stack)*
-            }
-        }
-    };
-
-    {
-        state: parse_method_generics,
-        buffer: { >> $($rest:tt)* },
-        stack: {
-            depth: { { {} } },
-            signature: { $($signature:tt)* },
-            $($stack:tt)*
-        }
-    } => {
-        delegate__parse! {
-            state: parse_method_args,
-            buffer: { $($rest)* },
-            stack: {
-                signature: { $($signature)* > > },
+                depth: { { $($depth)* } },
+                signature: { $($signature)* > },
                 $($stack)*
             }
         }
