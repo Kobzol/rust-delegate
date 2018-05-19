@@ -1598,12 +1598,12 @@ mod tests {
                     fn test_complex_where_clause<T, U, V>(self, first: T, second: U, third: V)
                         where T: SomeTrait + AnotherTrait,
                               U: Yet<T> + AnotherTrait,
-                              V: StillAnotherTrait<T, U>;
+                              V: StillAnotherTrait<T, U> + ?Sized;
 
                     fn test_complex_where_clause_with_return<T, U, V>(self) -> V
                         where T: SomeTrait + AnotherTrait,
                               U: Yet<T> + AnotherTrait,
-                              V: StillAnotherTrait<T, U>;
+                              V: StillAnotherTrait<T, U> + ?Sized;
                 }
             },
 
@@ -1622,7 +1622,7 @@ mod tests {
                 fn test_complex_where_clause<T, U, V>(self, first: T, second: U, third: V)
                         where T: SomeTrait + AnotherTrait,
                               U: Yet<T> + AnotherTrait,
-                              V: StillAnotherTrait<T, U> {
+                              V: StillAnotherTrait<T, U> + ?Sized {
                     self.inner.test_complex_where_clause(first, second, third)
                 }
 
@@ -1630,7 +1630,7 @@ mod tests {
                 fn test_complex_where_clause_with_return<T, U, V>(self) -> V
                     where T: SomeTrait + AnotherTrait,
                           U: Yet<T> + AnotherTrait,
-                          V: StillAnotherTrait<T, U> {
+                          V: StillAnotherTrait<T, U> + ?Sized {
                     self.inner.test_complex_where_clause_with_return()
                 }
             }
