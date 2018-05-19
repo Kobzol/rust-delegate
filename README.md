@@ -12,8 +12,8 @@ familiar with the idea, a stack is a data structure in which items are inserted
 and accessed in a LIFO (Last-In, First-Out) manner. Typically, a stack supports
 the following basic operations:
 
-* **Push**: insert an item to the top of the stack
-* **Pop**: remove an item from the top of the stack (if stack is not empty)
+* **push**: insert an item to the top of the stack.
+* **pop**: remove an item from the top of the stack (if stack is not empty).
 
 In addition, a stack may support secondary operations such as querying if the
 stack is empty, the current size of the stack, a **peek** operation that gives
@@ -74,7 +74,7 @@ called `last()` in `Vec`).
 The fact that these implemenations are boring (simply delegating to another
 struct) is probably notable and worth calling out. If the reader of the code is
 already familiar with the behavior with the other struct, they can safely gloss
-over these methods and focus on the more interesting ones.Further more, if we
+over these methods and focus on the more interesting ones. Further more, if we
 can trust that the struct we are delegating to has a solid implementation and
 is well tested, we can probably just write a simple smoke test and not worry
 about re-testing the edge cases.
@@ -127,7 +127,7 @@ impl<T> Stack<T> {
 }
 ```
 
-This macro invocation would generate exactly the same codeas we had written by
+This macro invocation would generate exactly the same code as we had written by
 hand in the example above (with one minor difference, see below). Not only did
 you save a few lines of typing, you are making your intent more clear to your
 readers as well.
@@ -173,7 +173,7 @@ impl<T> MultiStack<T> {
             #[target_method(push)]
             pub fn push_left(&mut self, value: T);
 
-            /// PRemove an item from the top of the left stack
+            /// Remove an item from the top of the left stack
             #[target_method(pop)]
             pub fn pop_left(&mut self, value: T);
         }
@@ -183,7 +183,7 @@ impl<T> MultiStack<T> {
             #[target_method(push)]
             pub fn push_right(&mut self, value: T);
 
-            /// PRemove an item from the top of the right stack
+            /// Remove an item from the top of the right stack
             #[target_method(pop)]
             pub fn pop_right(&mut self, value: T);
         }
