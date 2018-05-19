@@ -1638,6 +1638,83 @@ mod tests {
     }
 
     #[test]
+    fn test_comments() {
+        assert_delegation! {
+            {
+                target self.inner {
+                    // simple comment
+                    fn test_simple_comment(self);
+
+                    // multiple
+                    // simple
+                    // comments
+                    fn test_multiple_simple_comments(self);
+
+                    /// doc comment
+                    fn test_doc_comment(self);
+
+                    /// multiple
+                    /// doc
+                    /// comments
+                    fn test_multiple_doc_comments(self);
+
+                    //! bang comment
+                    fn test_bang_comment(self);
+
+                    //! multiple
+                    //! bang
+                    //! comments
+                    fn test_multiple_bang_comments(self);
+                }
+            },
+
+            {
+                #[inline]
+                // simple comment
+                fn test_simple_comment(self) {
+                    self.inner.test_simple_comment()
+                }
+
+                #[inline]
+                // multiple
+                // simple
+                // comments
+                fn test_multiple_simple_comments(self) {
+                    self.inner.test_multiple_simple_comments()
+                }
+
+                #[inline]
+                /// doc comment
+                fn test_doc_comment(self) {
+                    self.inner.test_doc_comment()
+                }
+
+                #[inline]
+                /// multiple
+                /// doc
+                /// comments
+                fn test_multiple_doc_comments(self) {
+                    self.inner.test_multiple_doc_comments()
+                }
+
+                #[inline]
+                //! bang comment
+                fn test_bang_comment(self) {
+                    self.inner.test_bang_comment()
+                }
+
+                #[inline]
+                //! multiple
+                //! bang
+                //! comments
+                fn test_multiple_bang_comments(self) {
+                    self.inner.test_multiple_bang_comments()
+                }
+            }
+        }
+    }
+
+    #[test]
     fn test_multiple_targets() {
         assert_delegation! {
             {
