@@ -207,17 +207,17 @@ macro_rules! delegate__parse {
 
     {
         state: parse_method_visibility,
-        buffer: { pub fn $($rest:tt)* },
+        buffer: { pub ( $($pub_mod:tt)* ) $($rest:tt)* },
         stack: {
             signature: { $($signature:tt)* },
             $($stack:tt)*
         }
     } => {
         delegate__parse! {
-            state: parse_method_name,
+            state: parse_method_safety,
             buffer: { $($rest)* },
             stack: {
-                signature: { $($signature)* pub fn },
+                signature: { $($signature)* pub ( $($pub_mod)* ) },
                 $($stack)*
             }
         }
@@ -225,17 +225,17 @@ macro_rules! delegate__parse {
 
     {
         state: parse_method_visibility,
-        buffer: { pub $pub_mod:tt fn $($rest:tt)* },
+        buffer: { pub $($rest:tt)* },
         stack: {
             signature: { $($signature:tt)* },
             $($stack:tt)*
         }
     } => {
         delegate__parse! {
-            state: parse_method_name,
+            state: parse_method_safety,
             buffer: { $($rest)* },
             stack: {
-                signature: { $($signature)* pub $pub_mod fn },
+                signature: { $($signature)* pub },
                 $($stack)*
             }
         }
@@ -243,7 +243,21 @@ macro_rules! delegate__parse {
 
     {
         state: parse_method_visibility,
-        buffer: { fn $($rest:tt)* },
+        buffer: $buffer:tt,
+        stack: $stack:tt
+    } => {
+        delegate__parse! {
+            state: parse_method_safety,
+            buffer: $buffer,
+            stack: $stack
+        }
+    };
+
+    // state: parse_method_safety
+
+    {
+        state: parse_method_safety,
+        buffer: { unsafe $($rest:tt)* },
         stack: {
             signature: { $($signature:tt)* },
             $($stack:tt)*
@@ -253,9 +267,21 @@ macro_rules! delegate__parse {
             state: parse_method_name,
             buffer: { $($rest)* },
             stack: {
-                signature: { $($signature)* fn },
+                signature: { $($signature)* unsafe },
                 $($stack)*
             }
+        }
+    };
+
+    {
+        state: parse_method_safety,
+        buffer: $buffer:tt,
+        stack: $stack:tt
+    } => {
+        delegate__parse! {
+            state: parse_method_name,
+            buffer: $buffer,
+            stack: $stack
         }
     };
 
@@ -263,7 +289,7 @@ macro_rules! delegate__parse {
 
     {
         state: parse_method_name,
-        buffer: { $name:ident $($rest:tt)* },
+        buffer: { fn $name:ident $($rest:tt)* },
         stack: {
             signature: { #[default_target_method] $($signature:tt)* },
             body: { $($body:tt)* },
@@ -275,7 +301,7 @@ macro_rules! delegate__parse {
             buffer: { $($rest)* },
             stack: {
                 depth: {},
-                signature: { $($signature)* $name },
+                signature: { $($signature)* fn $name },
                 body: { $($body)* . $name },
                 $($stack)*
             }
@@ -284,7 +310,7 @@ macro_rules! delegate__parse {
 
     {
         state: parse_method_name,
-        buffer: { $name:ident $($rest:tt)* },
+        buffer: { fn $name:ident $($rest:tt)* },
         stack: {
             signature: { #[target_method($target_method:ident)] $($signature:tt)* },
             body: { $($body:tt)* },
@@ -296,7 +322,7 @@ macro_rules! delegate__parse {
             buffer: { $($rest)* },
             stack: {
                 depth: {},
-                signature: { $($signature)* $name },
+                signature: { $($signature)* fn $name },
                 body: { $($body)* . $target_method },
                 $($stack)*
             }
@@ -1311,6 +1337,38 @@ mod tests {
                 #[inline]
                 pub(in some::other::mod) fn test_pub_in(self) {
                     self.inner.test_pub_in()
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_unsafe() {
+        assert_delegation! {
+            {
+                target self.inner {
+                    unsafe fn test_unsafe(self);
+
+                    pub unsafe fn test_pub_unsafe(self);
+
+                    pub(crate) unsafe fn test_pub_crate_unsafe(self);
+                }
+            },
+
+            {
+                #[inline]
+                unsafe fn test_unsafe(self) {
+                    self.inner.test_unsafe()
+                }
+
+                #[inline]
+                pub unsafe fn test_pub_unsafe(self) {
+                    self.inner.test_pub_unsafe()
+                }
+
+                #[inline]
+                pub(crate) unsafe fn test_pub_crate_unsafe(self) {
+                    self.inner.test_pub_crate_unsafe()
                 }
             }
         }
