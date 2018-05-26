@@ -197,52 +197,16 @@ macro_rules! delegate__parse {
         stack: $stack:tt
     } => {
         delegate__parse! {
-            state: parse_method_visibility,
+            state: parse_method_visibility_safety,
             buffer: $buffer,
             stack: $stack
         }
     };
 
-    // state: parse_method_visibility
+    // state: parse_method_visibility_safety
 
     {
-        state: parse_method_visibility,
-        buffer: { pub fn $($rest:tt)* },
-        stack: {
-            signature: { $($signature:tt)* },
-            $($stack:tt)*
-        }
-    } => {
-        delegate__parse! {
-            state: parse_method_name,
-            buffer: { $($rest)* },
-            stack: {
-                signature: { $($signature)* pub fn },
-                $($stack)*
-            }
-        }
-    };
-
-    {
-        state: parse_method_visibility,
-        buffer: { pub $pub_mod:tt fn $($rest:tt)* },
-        stack: {
-            signature: { $($signature:tt)* },
-            $($stack:tt)*
-        }
-    } => {
-        delegate__parse! {
-            state: parse_method_name,
-            buffer: { $($rest)* },
-            stack: {
-                signature: { $($signature)* pub $pub_mod fn },
-                $($stack)*
-            }
-        }
-    };
-
-    {
-        state: parse_method_visibility,
+        state: parse_method_visibility_safety,
         buffer: { fn $($rest:tt)* },
         stack: {
             signature: { $($signature:tt)* },
@@ -254,6 +218,60 @@ macro_rules! delegate__parse {
             buffer: { $($rest)* },
             stack: {
                 signature: { $($signature)* fn },
+                $($stack)*
+            }
+        }
+    };
+
+    {
+        state: parse_method_visibility_safety,
+        buffer: { pub ( $($pub_mod:tt)* ) $($rest:tt)* },
+        stack: {
+            signature: { $($signature:tt)* },
+            $($stack:tt)*
+        }
+    } => {
+        delegate__parse! {
+            state: parse_method_visibility_safety,
+            buffer: { $($rest)* },
+            stack: {
+                signature: { $($signature)* pub ($($pub_mod)*) },
+                $($stack)*
+            }
+        }
+    };
+
+    {
+        state: parse_method_visibility_safety,
+        buffer: { pub $($rest:tt)* },
+        stack: {
+            signature: { $($signature:tt)* },
+            $($stack:tt)*
+        }
+    } => {
+        delegate__parse! {
+            state: parse_method_visibility_safety,
+            buffer: { $($rest)* },
+            stack: {
+                signature: { $($signature)* pub },
+                $($stack)*
+            }
+        }
+    };
+
+    {
+        state: parse_method_visibility_safety,
+        buffer: { unsafe $($rest:tt)* },
+        stack: {
+            signature: { $($signature:tt)* },
+            $($stack:tt)*
+        }
+    } => {
+        delegate__parse! {
+            state: parse_method_visibility_safety,
+            buffer: { $($rest)* },
+            stack: {
+                signature: { $($signature)* unsafe },
                 $($stack)*
             }
         }
@@ -1311,6 +1329,36 @@ mod tests {
                 #[inline]
                 pub(in some::other::mod) fn test_pub_in(self) {
                     self.inner.test_pub_in()
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_unsafe() {
+        assert_delegation! {
+            {
+                target self.inner {
+                    unsafe fn test_unsafe(self);
+                    pub unsafe fn test_pub_unsafe(self);
+                    pub(crate) fn test_pub_crate_unsafe(self);
+                }
+            },
+
+            {
+                #[inline]
+                unsafe fn test_unsafe(self) {
+                    self.inner.test_unsafe()
+                }
+
+                #[inline]
+                pub unsafe fn test_pub_unsafe(self) {
+                    self.inner.test_pub_unsafe()
+                }
+
+                #[inline]
+                pub(crate) unsafe fn test_pub_crate_unsafe(self) {
+                    self.inner.test_pub_crate_unsafe()
                 }
             }
         }
