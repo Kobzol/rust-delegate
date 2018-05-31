@@ -264,7 +264,7 @@ macro_rules! delegate__parse {
         }
     } => {
         delegate__parse! {
-            state: parse_method_name,
+            state: parse_method_extern,
             buffer: { $($rest)* },
             stack: {
                 signature: { $($signature)* unsafe },
@@ -279,9 +279,65 @@ macro_rules! delegate__parse {
         stack: $stack:tt
     } => {
         delegate__parse! {
-            state: parse_method_name,
+            state: parse_method_extern,
             buffer: $buffer,
             stack: $stack
+        }
+    };
+
+    // state: parse_method_extern
+
+    {
+        state: parse_method_extern,
+        buffer: { extern $abi:tt fn $($rest:tt)* },
+        stack: {
+            signature: { $($signature:tt)* },
+            $($stack:tt)*
+        }
+    } => {
+        delegate__parse! {
+            state: parse_method_name,
+            buffer: { $($rest)* },
+            stack: {
+                signature: { $($signature)* extern $abi fn },
+                $($stack)*
+            }
+        }
+    };
+
+    {
+        state: parse_method_extern,
+        buffer: { extern fn $($rest:tt)* },
+        stack: {
+            signature: { $($signature:tt)* },
+            $($stack:tt)*
+        }
+    } => {
+        delegate__parse! {
+            state: parse_method_name,
+            buffer: { $($rest)* },
+            stack: {
+                signature: { $($signature)* extern fn },
+                $($stack)*
+            }
+        }
+    };
+
+    {
+        state: parse_method_extern,
+        buffer: { fn $($rest:tt)* },
+        stack: {
+            signature: { $($signature:tt)* },
+            $($stack:tt)*
+        }
+    } => {
+        delegate__parse! {
+            state: parse_method_name,
+            buffer: { $($rest)* },
+            stack: {
+                signature: { $($signature)* fn },
+                $($stack)*
+            }
         }
     };
 
@@ -289,7 +345,7 @@ macro_rules! delegate__parse {
 
     {
         state: parse_method_name,
-        buffer: { fn $name:ident $($rest:tt)* },
+        buffer: { $name:ident $($rest:tt)* },
         stack: {
             signature: { #[default_target_method] $($signature:tt)* },
             body: { $($body:tt)* },
@@ -301,7 +357,7 @@ macro_rules! delegate__parse {
             buffer: { $($rest)* },
             stack: {
                 depth: {},
-                signature: { $($signature)* fn $name },
+                signature: { $($signature)* $name },
                 body: { $($body)* . $name },
                 $($stack)*
             }
@@ -310,7 +366,7 @@ macro_rules! delegate__parse {
 
     {
         state: parse_method_name,
-        buffer: { fn $name:ident $($rest:tt)* },
+        buffer: { $name:ident $($rest:tt)* },
         stack: {
             signature: { #[target_method($target_method:ident)] $($signature:tt)* },
             body: { $($body:tt)* },
@@ -322,7 +378,7 @@ macro_rules! delegate__parse {
             buffer: { $($rest)* },
             stack: {
                 depth: {},
-                signature: { $($signature)* fn $name },
+                signature: { $($signature)* $name },
                 body: { $($body)* . $target_method },
                 $($stack)*
             }
@@ -1369,6 +1425,59 @@ mod tests {
                 #[inline]
                 pub(crate) unsafe fn test_pub_crate_unsafe(self) {
                     self.inner.test_pub_crate_unsafe()
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_extern() {
+        assert_delegation! {
+            {
+                target self.inner {
+                    extern fn test_extern(self);
+
+                    extern "C" fn test_extern_c(self);
+
+                    pub extern fn test_pub_extern(self);
+
+                    pub extern "C" fn test_pub_extern_c(self);
+
+                    pub(crate) extern fn test_pub_crate_extern(self);
+
+                    pub(crate) extern "C" fn test_pub_crate_extern_c(self);
+                }
+            },
+
+            {
+                #[inline]
+                extern fn test_extern(self) {
+                    self.inner.test_extern()
+                }
+
+                #[inline]
+                extern "C" fn test_extern_c(self) {
+                    self.inner.test_extern_c()
+                }
+
+                #[inline]
+                pub extern fn test_pub_extern(self) {
+                    self.inner.test_pub_extern()
+                }
+
+                #[inline]
+                pub extern "C" fn test_pub_extern_c(self) {
+                    self.inner.test_pub_extern_c()
+                }
+
+                #[inline]
+                pub(crate) extern fn test_pub_crate_extern(self) {
+                    self.inner.test_pub_crate_extern()
+                }
+
+                #[inline]
+                pub(crate) extern "C" fn test_pub_crate_extern_c(self) {
+                    self.inner.test_pub_crate_extern_c()
                 }
             }
         }
