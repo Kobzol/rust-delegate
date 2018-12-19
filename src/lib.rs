@@ -6,7 +6,7 @@ macro_rules! delegate {
     // entry point
 
     { $($rest:tt)* } => {
-        delegate__parse! {
+        $crate::delegate__parse! {
             state: top_level,
             buffer: { $($rest)* },
             stack: {
@@ -38,7 +38,7 @@ macro_rules! delegate__parse {
             action: $action:tt
         }
     } => {
-        $action ! { $($items)* }
+        $crate::$action ! { $($items)* }
     };
 
     {
@@ -46,7 +46,7 @@ macro_rules! delegate__parse {
         buffer: $buffer:tt,
         stack: $stack:tt
     } => {
-        delegate__parse! {
+        $crate::delegate__parse! {
             state: parse_target,
             buffer: $buffer,
             stack: $stack
@@ -63,7 +63,7 @@ macro_rules! delegate__parse {
             $($stack:tt)*
         }
     } => {
-        delegate__parse! {
+        $crate::delegate__parse! {
             state: parse_methods,
             buffer: { $($methods)* },
             stack: {
@@ -87,7 +87,7 @@ macro_rules! delegate__parse {
             $($stack:tt)*
         }
     } => {
-        delegate__parse! {
+        $crate::delegate__parse! {
             state: top_level,
             buffer: { $($rest)* },
             stack: {
@@ -105,7 +105,7 @@ macro_rules! delegate__parse {
             $($stack:tt)*
         }
     } => {
-        delegate__parse! {
+        $crate::delegate__parse! {
             state: parse_method_attributes,
             buffer: $buffer,
             stack: {
@@ -127,7 +127,7 @@ macro_rules! delegate__parse {
             $($stack:tt)*
         }
     } => {
-        delegate__parse! {
+        $crate::delegate__parse! {
             state: parse_method_attributes,
             buffer: { $($rest)* },
             stack: {
@@ -145,7 +145,7 @@ macro_rules! delegate__parse {
             $($stack:tt)*
         }
     } => {
-        delegate__parse! {
+        $crate::delegate__parse! {
             state: parse_method_attributes,
             buffer: { $($rest)* },
             stack: {
@@ -163,7 +163,7 @@ macro_rules! delegate__parse {
             $($stack:tt)*
         }
     } => {
-        delegate__parse! {
+        $crate::delegate__parse! {
             state: parse_method_attributes,
             buffer: { $($rest)* },
             stack: {
@@ -181,7 +181,7 @@ macro_rules! delegate__parse {
             $($stack:tt)*
         }
     } => {
-        delegate__parse! {
+        $crate::delegate__parse! {
             state: parse_method_attributes,
             buffer: { $($rest)* },
             stack: {
@@ -196,7 +196,7 @@ macro_rules! delegate__parse {
         buffer: $buffer:tt,
         stack: $stack:tt
     } => {
-        delegate__parse! {
+        $crate::delegate__parse! {
             state: parse_method_visibility,
             buffer: $buffer,
             stack: $stack
@@ -213,7 +213,7 @@ macro_rules! delegate__parse {
             $($stack:tt)*
         }
     } => {
-        delegate__parse! {
+        $crate::delegate__parse! {
             state: parse_method_safety,
             buffer: { $($rest)* },
             stack: {
@@ -231,7 +231,7 @@ macro_rules! delegate__parse {
             $($stack:tt)*
         }
     } => {
-        delegate__parse! {
+        $crate::delegate__parse! {
             state: parse_method_safety,
             buffer: { $($rest)* },
             stack: {
@@ -246,7 +246,7 @@ macro_rules! delegate__parse {
         buffer: $buffer:tt,
         stack: $stack:tt
     } => {
-        delegate__parse! {
+        $crate::delegate__parse! {
             state: parse_method_safety,
             buffer: $buffer,
             stack: $stack
@@ -263,7 +263,7 @@ macro_rules! delegate__parse {
             $($stack:tt)*
         }
     } => {
-        delegate__parse! {
+        $crate::delegate__parse! {
             state: parse_method_extern,
             buffer: { $($rest)* },
             stack: {
@@ -278,7 +278,7 @@ macro_rules! delegate__parse {
         buffer: $buffer:tt,
         stack: $stack:tt
     } => {
-        delegate__parse! {
+        $crate::delegate__parse! {
             state: parse_method_extern,
             buffer: $buffer,
             stack: $stack
@@ -295,7 +295,7 @@ macro_rules! delegate__parse {
             $($stack:tt)*
         }
     } => {
-        delegate__parse! {
+        $crate::delegate__parse! {
             state: parse_method_name,
             buffer: { $($rest)* },
             stack: {
@@ -313,7 +313,7 @@ macro_rules! delegate__parse {
             $($stack:tt)*
         }
     } => {
-        delegate__parse! {
+        $crate::delegate__parse! {
             state: parse_method_name,
             buffer: { $($rest)* },
             stack: {
@@ -331,7 +331,7 @@ macro_rules! delegate__parse {
             $($stack:tt)*
         }
     } => {
-        delegate__parse! {
+        $crate::delegate__parse! {
             state: parse_method_name,
             buffer: { $($rest)* },
             stack: {
@@ -352,7 +352,7 @@ macro_rules! delegate__parse {
             $($stack:tt)*
         }
     } => {
-        delegate__parse! {
+        $crate::delegate__parse! {
             state: parse_method_generics,
             buffer: { $($rest)* },
             stack: {
@@ -373,7 +373,7 @@ macro_rules! delegate__parse {
             $($stack:tt)*
         }
     } => {
-        delegate__parse! {
+        $crate::delegate__parse! {
             state: parse_method_generics,
             buffer: { $($rest)* },
             stack: {
@@ -396,7 +396,7 @@ macro_rules! delegate__parse {
             $($stack:tt)*
         }
     } => {
-        delegate__parse! {
+        $crate::delegate__parse! {
             state: parse_method_generics,
             buffer: { $($rest)* },
             stack: {
@@ -416,7 +416,7 @@ macro_rules! delegate__parse {
             $($stack:tt)*
         }
     } => {
-        delegate__parse! {
+        $crate::delegate__parse! {
             state: parse_method_generics,
             buffer: { $($rest)* },
             stack: {
@@ -436,7 +436,7 @@ macro_rules! delegate__parse {
             $($stack:tt)*
         }
     } => {
-        delegate__parse! {
+        $crate::delegate__parse! {
             state: parse_method_args,
             buffer: { $($rest)* },
             stack: {
@@ -455,7 +455,7 @@ macro_rules! delegate__parse {
             $($stack:tt)*
         }
     } => {
-        delegate__parse! {
+        $crate::delegate__parse! {
             state: parse_method_generics,
             buffer: { > $($rest)* },
             stack: {
@@ -474,7 +474,7 @@ macro_rules! delegate__parse {
             $($stack:tt)*
         }
     } => {
-        delegate__parse! {
+        $crate::delegate__parse! {
             state: parse_method_args,
             buffer: $buffer,
             stack: {
@@ -492,7 +492,7 @@ macro_rules! delegate__parse {
             $($stack:tt)*
         }
     } => {
-        delegate__parse! {
+        $crate::delegate__parse! {
             state: parse_method_generics,
             buffer: { $($rest)* },
             stack: {
@@ -514,7 +514,7 @@ macro_rules! delegate__parse {
             $($stack:tt)*
         }
     } => {
-        delegate__parse! {
+        $crate::delegate__parse! {
             state: parse_method_args_self,
             buffer: { $($args)* },
             stack: {
@@ -541,9 +541,9 @@ macro_rules! delegate__parse {
             $($stack:tt)*
         }
     } => {
-        delegate__ensure_self!($self);
+        $crate::delegate__ensure_self!($self);
 
-        delegate__parse! {
+        $crate::delegate__parse! {
             state: parse_method_args_rest,
             buffer: { $($rest)* },
             stack: {
@@ -567,9 +567,9 @@ macro_rules! delegate__parse {
             $($stack:tt)*
         }
     } => {
-        delegate__ensure_self!($self);
+        $crate::delegate__ensure_self!($self);
 
-        delegate__parse! {
+        $crate::delegate__parse! {
             state: parse_method_args_rest,
             buffer: {},
             stack: {
@@ -593,9 +593,9 @@ macro_rules! delegate__parse {
             $($stack:tt)*
         }
     } => {
-        delegate__ensure_self!($self);
+        $crate::delegate__ensure_self!($self);
 
-        delegate__parse! {
+        $crate::delegate__parse! {
             state: parse_method_args_rest,
             buffer: { $($rest)* },
             stack: {
@@ -619,9 +619,9 @@ macro_rules! delegate__parse {
             $($stack:tt)*
         }
     } => {
-        delegate__ensure_self!($self);
+        $crate::delegate__ensure_self!($self);
 
-        delegate__parse! {
+        $crate::delegate__parse! {
             state: parse_method_args_rest,
             buffer: {},
             stack: {
@@ -645,9 +645,9 @@ macro_rules! delegate__parse {
             $($stack:tt)*
         }
     } => {
-        delegate__ensure_self!($self);
+        $crate::delegate__ensure_self!($self);
 
-        delegate__parse! {
+        $crate::delegate__parse! {
             state: parse_method_args_rest,
             buffer: { $($rest)* },
             stack: {
@@ -671,9 +671,9 @@ macro_rules! delegate__parse {
             $($stack:tt)*
         }
     } => {
-        delegate__ensure_self!($self);
+        $crate::delegate__ensure_self!($self);
 
-        delegate__parse! {
+        $crate::delegate__parse! {
             state: parse_method_args_rest,
             buffer: {},
             stack: {
@@ -697,9 +697,9 @@ macro_rules! delegate__parse {
             $($stack:tt)*
         }
     } => {
-        delegate__ensure_self!($self);
+        $crate::delegate__ensure_self!($self);
 
-        delegate__parse! {
+        $crate::delegate__parse! {
             state: parse_method_args_rest,
             buffer: { $($rest)* },
             stack: {
@@ -723,9 +723,9 @@ macro_rules! delegate__parse {
             $($stack:tt)*
         }
     } => {
-        delegate__ensure_self!($self);
+        $crate::delegate__ensure_self!($self);
 
-        delegate__parse! {
+        $crate::delegate__parse! {
             state: parse_method_args_rest,
             buffer: {},
             stack: {
@@ -749,9 +749,9 @@ macro_rules! delegate__parse {
             $($stack:tt)*
         }
     } => {
-        delegate__ensure_self!($self);
+        $crate::delegate__ensure_self!($self);
 
-        delegate__parse! {
+        $crate::delegate__parse! {
             state: parse_method_args_rest,
             buffer: { $($rest)* },
             stack: {
@@ -775,9 +775,9 @@ macro_rules! delegate__parse {
             $($stack:tt)*
         }
     } => {
-        delegate__ensure_self!($self);
+        $crate::delegate__ensure_self!($self);
 
-        delegate__parse! {
+        $crate::delegate__parse! {
             state: parse_method_args_rest,
             buffer: {},
             stack: {
@@ -801,7 +801,7 @@ macro_rules! delegate__parse {
             $($stack:tt)*
         }
     } => {
-        delegate__parse! {
+        $crate::delegate__parse! {
             state: parse_method_args_rest,
             buffer: { $($rest)* },
             stack: {
@@ -821,7 +821,7 @@ macro_rules! delegate__parse {
             $($stack:tt)*
         }
     } => {
-        delegate__parse! {
+        $crate::delegate__parse! {
             state: parse_method_args_rest,
             buffer: {},
             stack: {
@@ -844,7 +844,7 @@ macro_rules! delegate__parse {
             $($stack:tt)*
         }
     } => {
-        delegate__parse! {
+        $crate::delegate__parse! {
             state: parse_method_return,
             buffer: { $($rest)* },
             stack: {
@@ -865,7 +865,7 @@ macro_rules! delegate__parse {
             $($stack:tt)*
         }
     } => {
-        delegate__parse! {
+        $crate::delegate__parse! {
             state: parse_method_end,
             buffer: { ; $($rest)* },
             stack: {
@@ -883,7 +883,7 @@ macro_rules! delegate__parse {
             $($stack:tt)*
         }
     } => {
-        delegate__parse! {
+        $crate::delegate__parse! {
             state: parse_method_where_clause,
             buffer: { where $($rest)* },
             stack: {
@@ -898,7 +898,7 @@ macro_rules! delegate__parse {
         buffer: $buffer:tt,
         stack: $stack:tt
     } => {
-        delegate__parse! {
+        $crate::delegate__parse! {
             state: parse_method_where_clause,
             buffer: $buffer,
             stack: $stack
@@ -915,7 +915,7 @@ macro_rules! delegate__parse {
             $($stack:tt)*
         }
     } => {
-        delegate__parse! {
+        $crate::delegate__parse! {
             state: parse_method_where_clause,
             buffer: { $($rest)* },
             stack: {
@@ -935,7 +935,7 @@ macro_rules! delegate__parse {
             $($stack:tt)*
         }
     } => {
-        delegate__parse! {
+        $crate::delegate__parse! {
             state: parse_method_end,
             buffer: { ; $($rest)* },
             stack: {
@@ -954,7 +954,7 @@ macro_rules! delegate__parse {
             $($stack:tt)*
         }
     } => {
-        delegate__parse! {
+        $crate::delegate__parse! {
             state: parse_method_where_clause,
             buffer: { $($rest)* },
             stack: {
@@ -970,7 +970,7 @@ macro_rules! delegate__parse {
         buffer: $buffer:tt,
         stack: $stack:tt
     } => {
-        delegate__parse! {
+        $crate::delegate__parse! {
             state: parse_method_end,
             buffer: $buffer,
             stack: $stack
@@ -990,7 +990,7 @@ macro_rules! delegate__parse {
             $($stack:tt)*
         }
     } => {
-        delegate__parse! {
+        $crate::delegate__parse! {
             state: parse_methods,
             buffer: { $($rest)* },
             stack: {
@@ -1011,7 +1011,7 @@ macro_rules! delegate__parse {
         buffer: { $token:tt $($rest:tt)* },
         stack: $stack:tt
     } => {
-        delegate__parse_fail!($token);
+        $crate::delegate__parse_fail!($token);
         compile_error!(concat!(
             "ParseError! ",
             "Unexpected token `", stringify!($token), "` in `", stringify!($state), "`. ",
@@ -1150,7 +1150,7 @@ mod tests {
     macro_rules! assert_delegation {
         { { $($actual:tt)* }, { $($expected:tt)* } } => {
             let actual = {
-                delegate__parse! {
+                $crate::delegate__parse! {
                     state: top_level,
                     buffer: { $($actual)* },
                     stack: {
