@@ -11,7 +11,7 @@ macro_rules! delegate {
             buffer: { $($rest)* },
             stack: {
                 items: [],
-                action: delegate__expand
+                action: $crate::delegate__expand
             }
         }
     };
@@ -35,10 +35,10 @@ macro_rules! delegate__parse {
         buffer: {},
         stack: {
             items: [ $($items:tt)* ],
-            action: $action:tt
+            action: $action:path
         }
     } => {
-        $crate::$action ! { $($items)* }
+        $action ! { $($items)* }
     };
 
     {
