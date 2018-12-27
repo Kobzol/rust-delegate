@@ -68,10 +68,10 @@ impl<T> Stack<T> {
 
 As you can see, `Vec` already supports most of the operations we needed, so in
 most cases our implementation is simply delegating to the underlying `Vec`,
-except ocassionally re-mapping the method to a different name (e.g. `peek()` is
+except occasionally re-mapping the method to a different name (e.g. `peek()` is
 called `last()` in `Vec`).
 
-The fact that these implemenations are boring (simply delegating to another
+The fact that these implementations are boring (simply delegating to another
 struct) is probably notable and worth calling out. If the reader of the code is
 already familiar with the behavior with the other struct, they can safely gloss
 over these methods and focus on the more interesting ones. Further more, if we
@@ -80,7 +80,7 @@ is well tested, we can probably just write a simple smoke test and not worry
 about re-testing the edge cases.
 
 Unfortunately, this detail could easily get lost, especially when these methods
-are burried within other non-delegating methods. The only way to be sure is to
+are buried within other non-delegating methods. The only way to be sure is to
 carefully read the implementation to confirm that they aren't doing anything
 more, which somewhat defeats the purpose.
 
@@ -131,7 +131,7 @@ hand in the example above (with one minor difference, see below). Not only did
 you save a few lines of typing, you are making your intent more clear to your
 readers as well.
 
-The macro support all the usual syntatic elements that are valid around method
+The macro support all the usual syntactic elements that are valid around method
 declarations, such as (doc) comments, attributes, `pub` modifiers, generics,
 lifetimes, return type and where clauses. The only difference is that instead
 of providing a block for the method body, you simply end it with a `;` after
