@@ -88,8 +88,7 @@ The `delegate!` macro in this crate helps solve this problem by making your
 delegating methods more declarative:
 
 ```rust
-#[macro_use]
-extern crate delegate;
+use delegate::delegate;
 
 #[derive(Clone, Debug)]
 struct Stack<T> {
@@ -153,8 +152,7 @@ You may also delegate different methods to different fields inside the same
 `delegate!` block. For example:
 
 ```rust
-#[macro_use]
-extern crate delegate;
+use delegate::delegate;
 
 #[derive(Clone, Debug)]
 struct MultiStack<T> {
