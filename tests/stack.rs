@@ -1,7 +1,5 @@
-#![recursion_limit="128"]
-
-#[macro_use]
 extern crate delegate;
+use delegate::delegate;
 
 #[derive(Clone, Debug)]
 struct Stack<T> {
@@ -14,37 +12,23 @@ impl<T> Stack<T> {
         Stack { inner: vec![] }
     }
 
-    delegate! {
-        target self.inner {
-            /// The number of items in the stack
-            #[target_method(len)]
-            pub fn size(&self) -> usize;
+    delegate! { self.inner
+        fn size(&self) -> usize; use len
 
-            /// Whether the stack is empty
-            pub fn is_empty(&self) -> bool;
+        /// doc comment
+        fn is_empty(&self) -> bool;
 
-            /// Push an item to the top of the stack
-            pub fn push(&mut self, value: T);
-
-            /// Remove an item from the top of the stack
-            pub fn pop(&mut self) -> Option<T>;
-
-            /// Accessing the top item without removing it from the stack
-            #[target_method(last)]
-            pub fn peek(&self) -> Option<&T>;
-
-            /// Remove all items from the stack
-            pub fn clear(&mut self);
-
-            #[doc(hidden)]
-            pub fn into_boxed_slice(self) -> Box<[T]>;
-        }
+        fn push(&mut self, v: T);
+        fn pop(&mut self) -> Option<T>;
+        fn peek(&self) -> Option<&T>; use last
+        fn clear(&mut self);
+        fn into_boxed_slice(self) -> Box<[T]>;
     }
 }
 
 #[test]
 fn test_stack() {
-    let mut stack = Stack::new();
+    let mut stack: Stack<u32> = Stack::new();
 
     assert_eq!(stack.size(), 0);
     assert_eq!(stack.is_empty(), true);
