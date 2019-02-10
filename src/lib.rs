@@ -61,6 +61,19 @@ impl syn::parse::Parse for DelegatedSegment {
     }
 }
 
+fn has_inline_attribute(attrs: &Vec<syn::Attribute>) -> bool {
+    attrs
+        .iter()
+        .filter(|attr| {
+            if let syn::AttrStyle::Outer = attr.style {
+                attr.path.is_ident(syn::Ident::new("inline", attr.span()))
+            } else {
+                false
+            }
+        })
+        .count() > 0
+}
+
 #[proc_macro]
 pub fn delegate(tokens: TokenStream) -> TokenStream {
     let delegator: DelegatedSegment = syn::parse_macro_input!(tokens);
@@ -78,7 +91,6 @@ pub fn delegate(tokens: TokenStream) -> TokenStream {
                 signature.ident
             );
         }
-
         let args: Vec<syn::Ident> = inputs
             .iter()
             .filter_map(|i| match i {
@@ -103,10 +115,16 @@ pub fn delegate(tokens: TokenStream) -> TokenStream {
             Some(rename) => &rename,
             None => &input.sig.ident,
         };
+        let inline = if has_inline_attribute(attrs) {
+            quote! {}
+        } else {
+            quote! { #[inline(always)] }
+        };
 
         let span = input.span();
         quote::quote_spanned! {span=>
             #(#attrs)*
+            #inline
             pub #signature {
                 #delegator_attribute.#name(#(#args),*)
             }

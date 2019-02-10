@@ -18,6 +18,7 @@ impl<T> Stack<T> {
         /// doc comment
         fn is_empty(&self) -> bool;
 
+        #[inline(never)]
         fn push(&mut self, v: T);
         fn pop(&mut self) -> Option<T>;
         fn peek(&self) -> Option<&T>; use last
