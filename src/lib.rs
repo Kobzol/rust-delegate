@@ -9,6 +9,10 @@ use syn::spanned::Spanned;
 use syn::Error;
 use std::ops::Deref;
 
+mod kw {
+    syn::custom_keyword!(target);
+}
+
 struct DelegatedMethod {
     method: syn::TraitItemMethod,
     attributes: Vec<syn::Attribute>,
@@ -35,15 +39,19 @@ struct DelegatedSegment {
 
 impl syn::parse::Parse for DelegatedSegment {
     fn parse(input: ParseStream) -> Result<Self, Error> {
+        input.parse::<kw::target>()?;
         input.parse::<syn::Expr>().and_then(|delegator| {
             let delegator = match delegator {
                 syn::Expr::Field(field) => field,
                 _ => panic!("Use a field expression to select delegator (e.g. self.inner)"),
             };
 
+            let content;
+            syn::braced!(content in input);
+
             let mut methods = vec![];
-            while !input.is_empty() {
-                methods.push(input.parse::<DelegatedMethod>().unwrap());
+            while !content.is_empty() {
+                methods.push(content.parse::<DelegatedMethod>().unwrap());
             }
 
             Ok(DelegatedSegment { delegator, methods })

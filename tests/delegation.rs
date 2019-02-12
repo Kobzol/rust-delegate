@@ -36,14 +36,16 @@ impl Outer {
         Outer { inner: Inner }
     }
 
-    delegate! { self.inner
-        fn fun_generic<S: Copy>(self, s: S) -> S;
-        fn fun1(self, a: u32, b: u32) -> u32;
-        fn fun2(mut self, a: u32, b: u32) -> u32;
-        fn fun3(&self, a: u32, b: u32) -> u32;
-        fn fun4(&mut self, a: u32, b: u32) -> u32;
-        fn fun5(self: Self, a: u32, b: u32) -> u32;
-        fn fun6(mut self: Self, a: u32, b: u32) -> u32;
+    delegate! {
+        target self.inner {
+            fn fun_generic<S: Copy>(self, s: S) -> S;
+            fn fun1(self, a: u32, b: u32) -> u32;
+            fn fun2(mut self, a: u32, b: u32) -> u32;
+            fn fun3(&self, a: u32, b: u32) -> u32;
+            fn fun4(&mut self, a: u32, b: u32) -> u32;
+            fn fun5(self: Self, a: u32, b: u32) -> u32;
+            fn fun6(mut self: Self, a: u32, b: u32) -> u32;
+        }
     }
 }
 

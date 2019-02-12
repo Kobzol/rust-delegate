@@ -12,23 +12,25 @@ impl<T> Stack<T> {
         Stack { inner: vec![] }
     }
 
-    delegate! { self.inner
-        #[inline(never)]
-        #[target_method(len)]
-        pub(crate) fn size(&self) -> usize;
+    delegate! {
+        target self.inner {
+            #[inline(never)]
+            #[target_method(len)]
+            pub(crate) fn size(&self) -> usize;
 
-        /// doc comment
-        fn is_empty(&self) -> bool;
+            /// doc comment
+            fn is_empty(&self) -> bool;
 
-        #[inline(never)]
-        fn push(&mut self, v: T);
-        pub fn pop(&mut self) -> Option<T>;
+            #[inline(never)]
+            fn push(&mut self, v: T);
+            pub fn pop(&mut self) -> Option<T>;
 
-        #[target_method(last)]
-        #[inline(never)]
-        fn peek(&self) -> Option<&T>;
-        fn clear(&mut self);
-        fn into_boxed_slice(self) -> Box<[T]>;
+            #[target_method(last)]
+            #[inline(never)]
+            fn peek(&self) -> Option<&T>;
+            fn clear(&mut self);
+            fn into_boxed_slice(self) -> Box<[T]>;
+        }
     }
 }
 
