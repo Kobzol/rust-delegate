@@ -9,9 +9,28 @@ use syn::spanned::Spanned;
 use syn::Error;
 use std::ops::Deref;
 
+struct DelegatedMethod {
+    method: syn::TraitItemMethod,
+    attributes: Vec<syn::Attribute>,
+    visibility: syn::Visibility
+}
+
+impl syn::parse::Parse for DelegatedMethod {
+    fn parse(input: ParseStream) -> Result<Self, Error> {
+        let attributes = input.call(syn::Attribute::parse_outer)?;
+        let visibility = input.call(syn::Visibility::parse)?;
+
+        Ok(DelegatedMethod {
+            method: input.parse()?,
+            attributes,
+            visibility
+        })
+    }
+}
+
 struct DelegatedSegment {
     delegator: syn::ExprField,
-    methods: Vec<syn::TraitItemMethod>,
+    methods: Vec<DelegatedMethod>,
 }
 
 impl syn::parse::Parse for DelegatedSegment {
@@ -22,13 +41,9 @@ impl syn::parse::Parse for DelegatedSegment {
                 _ => panic!("Use a field expression to select delegator (e.g. self.inner)"),
             };
 
-            let mut methods: Vec<syn::TraitItemMethod> = vec![];
-            loop {
-                let method = input.parse::<syn::TraitItemMethod>();
-                match method {
-                    Ok(res) => methods.push(res),
-                    Err(_) => break,
-                }
+            let mut methods = vec![];
+            while !input.is_empty() {
+                methods.push(input.parse::<DelegatedMethod>().unwrap());
             }
 
             Ok(DelegatedSegment { delegator, methods })
@@ -43,6 +58,7 @@ fn transform_attributes(attrs: &Vec<syn::Attribute>,
         if let syn::AttrStyle::Outer = attr.style {
             if attr.path.is_ident(syn::Ident::new("target_method", attr.span())) {
                 let stream = &attr.tts;
+                // TODO: token::brace
                 let expr: Result<syn::Expr, _> = syn::parse2(stream.clone());
 
                 match expr {
@@ -54,8 +70,8 @@ fn transform_attributes(attrs: &Vec<syn::Attribute>,
                                         panic!("Use a simple string for target method name for {}", method.sig.ident);
                                     }
 
-                                    let (a, b) = path.path.segments.first().unwrap().into_tuple();
-                                    name = Some(a.ident.clone());
+                                    let (segment, _) = path.path.segments.first().unwrap().into_tuple();
+                                    name = Some(segment.ident.clone());
                                 }
                                 _ => panic!("Use a string for target method name for {}", method.sig.ident)
                             }
@@ -93,12 +109,12 @@ pub fn delegate(tokens: TokenStream) -> TokenStream {
     let delegator: DelegatedSegment = syn::parse_macro_input!(tokens);
 
     let delegator_attribute = delegator.delegator;
-    let functions = delegator.methods.iter().map(|input| {
+    let functions = delegator.methods.iter().map(|method| {
+        let input = &method.method;
         let signature = &input.sig;
         let inputs = &input.sig.decl.inputs;
-        let attrs = &input.attrs;
 
-        let (attrs, name) = transform_attributes(&input.attrs, &input);
+        let (attrs, name) = transform_attributes(&method.attributes, &input);
 
         if let Some(_) = input.default {
             panic!(
@@ -131,16 +147,17 @@ pub fn delegate(tokens: TokenStream) -> TokenStream {
             None => &input.sig.ident
         };
         let inline = if has_inline_attribute(&attrs) {
-            quote! {}
+            quote!()
         } else {
             quote! { #[inline(always)] }
         };
+        let visibility = &method.visibility;
 
         let span = input.span();
         quote::quote_spanned! {span=>
             #(#attrs)*
             #inline
-            pub #signature {
+            #visibility #signature {
                 #delegator_attribute.#name(#(#args),*)
             }
         }

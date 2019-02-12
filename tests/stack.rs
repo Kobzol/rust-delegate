@@ -15,14 +15,14 @@ impl<T> Stack<T> {
     delegate! { self.inner
         #[inline(never)]
         #[target_method(len)]
-        fn size(&self) -> usize;
+        pub(crate) fn size(&self) -> usize;
 
         /// doc comment
         fn is_empty(&self) -> bool;
 
         #[inline(never)]
         fn push(&mut self, v: T);
-        fn pop(&mut self) -> Option<T>;
+        pub fn pop(&mut self) -> Option<T>;
 
         #[target_method(last)]
         #[inline(never)]
