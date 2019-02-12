@@ -7,36 +7,11 @@ use syn;
 use syn::parse::ParseStream;
 use syn::spanned::Spanned;
 use syn::Error;
-
-struct DelegatedMethod {
-    method: syn::TraitItemMethod,
-    name: Option<syn::Ident>,
-}
-
-impl syn::parse::Parse for DelegatedMethod {
-    fn parse(input: ParseStream) -> Result<Self, Error> {
-        let method = input.parse::<syn::TraitItemMethod>()?;
-        let lookahead = input.lookahead1();
-
-        let name = if lookahead.peek(syn::Token![use]) {
-            input.parse::<syn::Token![use]>()?;
-            let lookahead = input.lookahead1();
-            if lookahead.peek(syn::Ident) {
-                input.parse()?
-            } else {
-                panic!("Add a delegated method name for {}", method.sig.ident);
-            }
-        } else {
-            None
-        };
-
-        Ok(DelegatedMethod { method, name })
-    }
-}
+use std::ops::Deref;
 
 struct DelegatedSegment {
     delegator: syn::ExprField,
-    methods: Vec<DelegatedMethod>,
+    methods: Vec<syn::TraitItemMethod>,
 }
 
 impl syn::parse::Parse for DelegatedSegment {
@@ -47,9 +22,9 @@ impl syn::parse::Parse for DelegatedSegment {
                 _ => panic!("Use a field expression to select delegator (e.g. self.inner)"),
             };
 
-            let mut methods: Vec<DelegatedMethod> = vec![];
+            let mut methods: Vec<syn::TraitItemMethod> = vec![];
             loop {
-                let method = input.parse::<DelegatedMethod>();
+                let method = input.parse::<syn::TraitItemMethod>();
                 match method {
                     Ok(res) => methods.push(res),
                     Err(_) => break,
@@ -59,6 +34,45 @@ impl syn::parse::Parse for DelegatedSegment {
             Ok(DelegatedSegment { delegator, methods })
         })
     }
+}
+
+fn transform_attributes(attrs: &Vec<syn::Attribute>,
+                        method: &syn::TraitItemMethod) -> (Vec<syn::Attribute>, Option<syn::Ident>) {
+    let mut name: Option<syn::Ident> = None;
+    let attrs: Vec<syn::Attribute> = attrs.iter().filter(|attr| {
+        if let syn::AttrStyle::Outer = attr.style {
+            if attr.path.is_ident(syn::Ident::new("target_method", attr.span())) {
+                let stream = &attr.tts;
+                let expr: Result<syn::Expr, _> = syn::parse2(stream.clone());
+
+                match expr {
+                    Ok(content) => {
+                        match content {
+                            syn::Expr::Paren(p) => match p.expr.deref() {
+                                syn::Expr::Path(path) => {
+                                    if path.path.segments.len() > 1 {
+                                        panic!("Use a simple string for target method name for {}", method.sig.ident);
+                                    }
+
+                                    let (a, b) = path.path.segments.first().unwrap().into_tuple();
+                                    name = Some(a.ident.clone());
+                                }
+                                _ => panic!("Use a string for target method name for {}", method.sig.ident)
+                            }
+                            _ => panic!("Use target_method(name) to specify target method name for {}", method.sig.ident)
+                        }
+                    }
+                    _ => panic!("Include a target method name for {}", method.sig.ident)
+                }
+
+                return false
+            }
+        }
+
+        true
+    }).map(|arg| arg.clone()).collect();
+
+    (attrs, name)
 }
 
 fn has_inline_attribute(attrs: &Vec<syn::Attribute>) -> bool {
@@ -79,11 +93,12 @@ pub fn delegate(tokens: TokenStream) -> TokenStream {
     let delegator: DelegatedSegment = syn::parse_macro_input!(tokens);
 
     let delegator_attribute = delegator.delegator;
-    let functions = delegator.methods.iter().map(|fun| {
-        let input = &fun.method;
+    let functions = delegator.methods.iter().map(|input| {
         let signature = &input.sig;
         let inputs = &input.sig.decl.inputs;
         let attrs = &input.attrs;
+
+        let (attrs, name) = transform_attributes(&input.attrs, &input);
 
         if let Some(_) = input.default {
             panic!(
@@ -111,11 +126,11 @@ pub fn delegate(tokens: TokenStream) -> TokenStream {
             })
             .collect();
 
-        let name = match &fun.name {
-            Some(rename) => &rename,
-            None => &input.sig.ident,
+        let name = match &name {
+            Some(n) => &n,
+            None => &input.sig.ident
         };
-        let inline = if has_inline_attribute(attrs) {
+        let inline = if has_inline_attribute(&attrs) {
             quote! {}
         } else {
             quote! { #[inline(always)] }

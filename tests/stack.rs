@@ -13,7 +13,9 @@ impl<T> Stack<T> {
     }
 
     delegate! { self.inner
-        fn size(&self) -> usize; use len
+        #[inline(never)]
+        #[target_method(len)]
+        fn size(&self) -> usize;
 
         /// doc comment
         fn is_empty(&self) -> bool;
@@ -21,7 +23,10 @@ impl<T> Stack<T> {
         #[inline(never)]
         fn push(&mut self, v: T);
         fn pop(&mut self) -> Option<T>;
-        fn peek(&self) -> Option<&T>; use last
+
+        #[target_method(last)]
+        #[inline(never)]
+        fn peek(&self) -> Option<&T>;
         fn clear(&mut self);
         fn into_boxed_slice(self) -> Box<[T]>;
     }
