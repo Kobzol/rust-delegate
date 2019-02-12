@@ -7,7 +7,6 @@ use syn;
 use syn::parse::ParseStream;
 use syn::spanned::Spanned;
 use syn::Error;
-use std::ops::Deref;
 
 mod kw {
     syn::custom_keyword!(target);
@@ -74,6 +73,18 @@ impl syn::parse::Parse for DelegationBlock {
     }
 }
 
+struct TargetMethod {
+    name: syn::Ident
+}
+
+impl syn::parse::Parse for TargetMethod {
+    fn parse(input: ParseStream) -> Result<Self, Error> {
+        let content;
+        syn::parenthesized!(content in input);
+        Ok(TargetMethod { name: content.parse()? })
+    }
+}
+
 fn transform_attributes(attrs: &Vec<syn::Attribute>,
                         method: &syn::TraitItemMethod) -> (Vec<syn::Attribute>, Option<syn::Ident>) {
     let mut name: Option<syn::Ident> = None;
@@ -81,31 +92,12 @@ fn transform_attributes(attrs: &Vec<syn::Attribute>,
         if let syn::AttrStyle::Outer = attr.style {
             if attr.path.is_ident(syn::Ident::new("target_method", attr.span())) {
                 let stream = &attr.tts;
-                let expr: Result<syn::Expr, _> = syn::parse2(stream.clone());
 
-                match expr {
-                    Ok(content) => {
-                        match content {
-                            syn::Expr::Paren(p) => match p.expr.deref() {
-                                syn::Expr::Path(path) => {
-                                    if path.path.segments.len() > 1 {
-                                        panic!("Use a simple string for target method name for {}", method.sig.ident);
-                                    }
-
-                                    let (segment, _) = path.path.segments.first().unwrap().into_tuple();
-
-                                    if let Some(_) = &name {
-                                        panic!("Multiple target_method attributes specified for {}", method.sig.ident)
-                                    }
-                                    name = Some(segment.ident.clone());
-                                }
-                                _ => panic!("Use a string for target method name for {}", method.sig.ident)
-                            }
-                            _ => panic!("Use target_method(name) to specify target method name for {}", method.sig.ident)
-                        }
-                    }
-                    _ => panic!("Include a target method name for {}", method.sig.ident)
+                let target = syn::parse2::<TargetMethod>(stream.clone()).unwrap();
+                if let Some(_) = &name {
+                    panic!("Multiple target_method attributes specified for {}", method.sig.ident)
                 }
+                name = Some(target.name.clone());
 
                 return false
             }
