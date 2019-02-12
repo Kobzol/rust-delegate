@@ -71,6 +71,10 @@ fn transform_attributes(attrs: &Vec<syn::Attribute>,
                                     }
 
                                     let (segment, _) = path.path.segments.first().unwrap().into_tuple();
+
+                                    if let Some(_) = &name {
+                                        panic!("Multiple target_method attributes specified for {}", method.sig.ident)
+                                    }
                                     name = Some(segment.ident.clone());
                                 }
                                 _ => panic!("Use a string for target method name for {}", method.sig.ident)
