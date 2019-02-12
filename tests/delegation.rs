@@ -29,11 +29,12 @@ impl Inner {
 
 struct Outer {
     inner: Inner,
+    inner2: Inner
 }
 
 impl Outer {
     pub fn new() -> Outer {
-        Outer { inner: Inner }
+        Outer { inner: Inner, inner2: Inner }
     }
 
     delegate! {
@@ -42,6 +43,8 @@ impl Outer {
             fn fun1(self, a: u32, b: u32) -> u32;
             fn fun2(mut self, a: u32, b: u32) -> u32;
             fn fun3(&self, a: u32, b: u32) -> u32;
+        }
+        target self.inner2 {
             fn fun4(&mut self, a: u32, b: u32) -> u32;
             fn fun5(self: Self, a: u32, b: u32) -> u32;
             fn fun6(mut self: Self, a: u32, b: u32) -> u32;

@@ -59,6 +59,21 @@ impl syn::parse::Parse for DelegatedSegment {
     }
 }
 
+struct DelegationBlock {
+    segments: Vec<DelegatedSegment>
+}
+
+impl syn::parse::Parse for DelegationBlock {
+    fn parse(input: ParseStream) -> Result<Self, Error> {
+        let mut segments = vec!();
+        while !input.is_empty() {
+            segments.push(input.parse()?);
+        }
+
+        Ok(DelegationBlock { segments })
+    }
+}
+
 fn transform_attributes(attrs: &Vec<syn::Attribute>,
                         method: &syn::TraitItemMethod) -> (Vec<syn::Attribute>, Option<syn::Ident>) {
     let mut name: Option<syn::Ident> = None;
@@ -66,7 +81,6 @@ fn transform_attributes(attrs: &Vec<syn::Attribute>,
         if let syn::AttrStyle::Outer = attr.style {
             if attr.path.is_ident(syn::Ident::new("target_method", attr.span())) {
                 let stream = &attr.tts;
-                // TODO: token::brace
                 let expr: Result<syn::Expr, _> = syn::parse2(stream.clone());
 
                 match expr {
@@ -118,65 +132,68 @@ fn has_inline_attribute(attrs: &Vec<syn::Attribute>) -> bool {
 
 #[proc_macro]
 pub fn delegate(tokens: TokenStream) -> TokenStream {
-    let delegator: DelegatedSegment = syn::parse_macro_input!(tokens);
+    let block: DelegationBlock = syn::parse_macro_input!(tokens);
+    let sections = block.segments.iter().map(|delegator| {
+        let delegator_attribute = &delegator.delegator;
+        let functions = delegator.methods.iter().map(|method| {
+            let input = &method.method;
+            let signature = &input.sig;
+            let inputs = &input.sig.decl.inputs;
 
-    let delegator_attribute = delegator.delegator;
-    let functions = delegator.methods.iter().map(|method| {
-        let input = &method.method;
-        let signature = &input.sig;
-        let inputs = &input.sig.decl.inputs;
+            let (attrs, name) = transform_attributes(&method.attributes, &input);
 
-        let (attrs, name) = transform_attributes(&method.attributes, &input);
-
-        if let Some(_) = input.default {
-            panic!(
-                "Do not include implementation of delegated functions ({})",
-                signature.ident
-            );
-        }
-        let args: Vec<syn::Ident> = inputs
-            .iter()
-            .filter_map(|i| match i {
-                syn::FnArg::Captured(capt) => match &capt.pat {
-                    syn::Pat::Ident(ident) => {
-                        if ident.ident.to_string() == "self" {
-                            None
-                        } else {
-                            Some(ident.ident.clone())
+            if let Some(_) = input.default {
+                panic!(
+                    "Do not include implementation of delegated functions ({})",
+                    signature.ident
+                );
+            }
+            let args: Vec<syn::Ident> = inputs
+                .iter()
+                .filter_map(|i| match i {
+                    syn::FnArg::Captured(capt) => match &capt.pat {
+                        syn::Pat::Ident(ident) => {
+                            if ident.ident.to_string() == "self" {
+                                None
+                            } else {
+                                Some(ident.ident.clone())
+                            }
                         }
-                    }
-                    _ => panic!(
-                        "You have to use simple identifiers for delegated method parameters ({})",
-                        input.sig.ident
-                    ),
-                },
-                _ => None,
-            })
-            .collect();
+                        _ => panic!(
+                            "You have to use simple identifiers for delegated method parameters ({})",
+                            input.sig.ident
+                        ),
+                    },
+                    _ => None,
+                })
+                .collect();
 
-        let name = match &name {
-            Some(n) => &n,
-            None => &input.sig.ident
-        };
-        let inline = if has_inline_attribute(&attrs) {
-            quote!()
-        } else {
-            quote! { #[inline(always)] }
-        };
-        let visibility = &method.visibility;
+            let name = match &name {
+                Some(n) => &n,
+                None => &input.sig.ident
+            };
+            let inline = if has_inline_attribute(&attrs) {
+                quote!()
+            } else {
+                quote! { #[inline(always)] }
+            };
+            let visibility = &method.visibility;
 
-        let span = input.span();
-        quote::quote_spanned! {span=>
+            let span = input.span();
+            quote::quote_spanned! {span=>
             #(#attrs)*
             #inline
             #visibility #signature {
                 #delegator_attribute.#name(#(#args),*)
             }
         }
+        });
+
+        quote! { #(#functions)* }
     });
 
     let result = quote! {
-        #(#functions)*
+        #(#sections)*
     };
     result.into()
 }
