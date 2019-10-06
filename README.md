@@ -189,11 +189,33 @@ impl<T> MultiStack<T> {
 }
 ```
 
-This macro is implemented completely using the `macro_rules` system, therefore,
-this crate does not have a dependency on the nightly compiler or any unstable
-features. However, since the macro does recurse pretty deeply, you may need to
-add the `#![recursion_limit="..."]` attribute. The compiler will let you know
-if/when it is necessary.
+You target field for delegation can also be nested:
+```rust
+struct Inner;
+impl Inner {
+    pub fn method(&self, num: u32) -> u32 {
+        num
+    }
+}
+
+struct Inner2 {
+    inner: Inner
+}
+
+struct Wrapper {
+    inner: Inner2,
+}
+
+impl Wrapper {
+    delegate! {
+        target self.inner.inner {
+            pub(crate) fn method(&self, num: u32) -> u32;
+        }
+    }
+}
+```
+
+The `delegate!` macro is implemented as a procedural macro.
 
 ## License
 
