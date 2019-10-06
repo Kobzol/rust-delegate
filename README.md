@@ -189,7 +189,7 @@ impl<T> MultiStack<T> {
 }
 ```
 
-You target field for delegation can also be nested:
+The target field for delegation can also be nested:
 ```rust
 struct Inner;
 impl Inner {
@@ -210,6 +210,29 @@ impl Wrapper {
     delegate! {
         target self.inner.inner {
             pub(crate) fn method(&self, num: u32) -> u32;
+        }
+    }
+}
+```
+
+You can change the return type of the delegated method.
+If you don't want to your delegating method to return anything, you can omit the return type
+from the declaration. This will cause the method to return `()`.
+Or you can choose a different datatype which can be converted using the `From` trait from the
+original datatype.
+
+```rust
+struct Inner;
+impl Inner {
+    pub fn method1(&self, num: u32) -> u32 { num }
+    pub fn method2(&self, num: u32) -> u32 { num }
+}
+struct Wrapper { inner: Inner }
+impl Wrapper {
+    delegate! {
+        target self.inner.inner {
+            pub fn method(&self, num: u32);
+            pub fn method2(&self, num: u32) -> u64;
         }
     }
 }

@@ -187,13 +187,18 @@ pub fn delegate(tokens: TokenStream) -> TokenStream {
             let visibility = &method.visibility;
 
             let span = input.span();
-            quote::quote_spanned! {span=>
-            #(#attrs)*
-            #inline
-            #visibility #signature {
-                #delegator_attribute.#name(#(#args),*)
+            let terminator = match &signature.decl.output {
+                syn::ReturnType::Default => quote::quote! { ; },
+                _ => quote::quote! { .into() }
+            };
+
+            quote::quote_spanned! { span =>
+                #(#attrs)*
+                #inline
+                #visibility #signature {
+                    #delegator_attribute.#name(#(#args),*)#terminator
+                }
             }
-        }
         });
 
         quote! { #(#functions)* }
