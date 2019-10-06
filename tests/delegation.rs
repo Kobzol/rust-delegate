@@ -29,12 +29,15 @@ impl Inner {
 
 struct Outer {
     inner: Inner,
-    inner2: Inner
+    inner2: Inner,
 }
 
 impl Outer {
     pub fn new() -> Outer {
-        Outer { inner: Inner, inner2: Inner }
+        Outer {
+            inner: Inner,
+            inner2: Inner,
+        }
     }
 
     delegate! {

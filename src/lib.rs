@@ -15,7 +15,7 @@ mod kw {
 struct DelegatedMethod {
     method: syn::TraitItemMethod,
     attributes: Vec<syn::Attribute>,
-    visibility: syn::Visibility
+    visibility: syn::Visibility,
 }
 
 impl syn::parse::Parse for DelegatedMethod {
@@ -26,7 +26,7 @@ impl syn::parse::Parse for DelegatedMethod {
         Ok(DelegatedMethod {
             method: input.parse()?,
             attributes,
-            visibility
+            visibility,
         })
     }
 }
@@ -59,12 +59,12 @@ impl syn::parse::Parse for DelegatedSegment {
 }
 
 struct DelegationBlock {
-    segments: Vec<DelegatedSegment>
+    segments: Vec<DelegatedSegment>,
 }
 
 impl syn::parse::Parse for DelegationBlock {
     fn parse(input: ParseStream) -> Result<Self, Error> {
-        let mut segments = vec!();
+        let mut segments = vec![];
         while !input.is_empty() {
             segments.push(input.parse()?);
         }
@@ -74,42 +74,56 @@ impl syn::parse::Parse for DelegationBlock {
 }
 
 struct TargetMethod {
-    name: syn::Ident
+    name: syn::Ident,
 }
 
 impl syn::parse::Parse for TargetMethod {
     fn parse(input: ParseStream) -> Result<Self, Error> {
         let content;
         syn::parenthesized!(content in input);
-        Ok(TargetMethod { name: content.parse()? })
+        Ok(TargetMethod {
+            name: content.parse()?,
+        })
     }
 }
 
-fn transform_attributes(attrs: &Vec<syn::Attribute>,
-                        method: &syn::TraitItemMethod) -> (Vec<syn::Attribute>, Option<syn::Ident>) {
+fn transform_attributes(
+    attrs: &[syn::Attribute],
+    method: &syn::TraitItemMethod,
+) -> (Vec<syn::Attribute>, Option<syn::Ident>) {
     let mut name: Option<syn::Ident> = None;
-    let attrs: Vec<syn::Attribute> = attrs.iter().filter(|attr| {
-        if let syn::AttrStyle::Outer = attr.style {
-            if attr.path.is_ident(syn::Ident::new("target_method", attr.span())) {
-                let stream = &attr.tts;
+    let attrs: Vec<syn::Attribute> = attrs
+        .iter()
+        .filter(|attr| {
+            if let syn::AttrStyle::Outer = attr.style {
+                if attr
+                    .path
+                    .is_ident(syn::Ident::new("target_method", attr.span()))
+                {
+                    let stream = &attr.tts;
 
-                let target = syn::parse2::<TargetMethod>(stream.clone()).unwrap();
-                if let Some(_) = &name {
-                    panic!("Multiple target_method attributes specified for {}", method.sig.ident)
+                    let target = syn::parse2::<TargetMethod>(stream.clone()).unwrap();
+                    if name.is_some() {
+                        panic!(
+                            "Multiple target_method attributes specified for {}",
+                            method.sig.ident
+                        )
+                    }
+                    name = Some(target.name.clone());
+
+                    return false;
                 }
-                name = Some(target.name.clone());
-
-                return false
             }
-        }
 
-        true
-    }).map(|arg| arg.clone()).collect();
+            true
+        })
+        .cloned()
+        .collect();
 
     (attrs, name)
 }
 
-fn has_inline_attribute(attrs: &Vec<syn::Attribute>) -> bool {
+fn has_inline_attribute(attrs: &[syn::Attribute]) -> bool {
     attrs
         .iter()
         .filter(|attr| {
@@ -119,7 +133,8 @@ fn has_inline_attribute(attrs: &Vec<syn::Attribute>) -> bool {
                 false
             }
         })
-        .count() > 0
+        .count()
+        > 0
 }
 
 #[proc_macro]
@@ -134,7 +149,7 @@ pub fn delegate(tokens: TokenStream) -> TokenStream {
 
             let (attrs, name) = transform_attributes(&method.attributes, &input);
 
-            if let Some(_) = input.default {
+            if input.default.is_some() {
                 panic!(
                     "Do not include implementation of delegated functions ({})",
                     signature.ident
@@ -145,7 +160,7 @@ pub fn delegate(tokens: TokenStream) -> TokenStream {
                 .filter_map(|i| match i {
                     syn::FnArg::Captured(capt) => match &capt.pat {
                         syn::Pat::Ident(ident) => {
-                            if ident.ident.to_string() == "self" {
+                            if ident.ident == "self" {
                                 None
                             } else {
                                 Some(ident.ident.clone())
