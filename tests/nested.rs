@@ -9,7 +9,7 @@ impl Inner {
 }
 
 struct Inner2 {
-    inner: Inner
+    inner: Inner,
 }
 
 struct Wrapper {
@@ -27,9 +27,7 @@ impl Wrapper {
 #[test]
 fn test_nested() {
     let wrapper = Wrapper {
-        inner: Inner2 {
-            inner: Inner
-        }
+        inner: Inner2 { inner: Inner },
     };
 
     assert_eq!(wrapper.method(3), 3);
