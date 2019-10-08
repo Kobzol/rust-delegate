@@ -3,7 +3,9 @@ extern crate proc_macro;
 use proc_macro::TokenStream;
 
 use quote::quote;
+use std::collections::HashMap;
 use syn;
+use syn::export::TokenStream2;
 use syn::parse::ParseStream;
 use syn::spanned::Spanned;
 use syn::Error;
@@ -73,68 +75,87 @@ impl syn::parse::Parse for DelegationBlock {
     }
 }
 
-struct TargetMethod {
+struct TargetMethodAttribute {
     name: syn::Ident,
 }
 
-impl syn::parse::Parse for TargetMethod {
+impl syn::parse::Parse for TargetMethodAttribute {
     fn parse(input: ParseStream) -> Result<Self, Error> {
         let content;
         syn::parenthesized!(content in input);
-        Ok(TargetMethod {
+        Ok(TargetMethodAttribute {
             name: content.parse()?,
         })
     }
 }
 
-fn transform_attributes(
-    attrs: &[syn::Attribute],
+/// Iterates through the attributes of a method and filters special attributes.
+/// target_method => sets the name of the target method
+/// into => generates a `into()` call for the returned value
+///
+/// Returns tuple (blackbox attributes, name, into)
+fn parse_attributes<'a>(
+    attrs: &'a [syn::Attribute],
     method: &syn::TraitItemMethod,
-) -> (Vec<syn::Attribute>, Option<syn::Ident>) {
+) -> (Vec<&'a syn::Attribute>, Option<syn::Ident>, bool) {
     let mut name: Option<syn::Ident> = None;
-    let attrs: Vec<syn::Attribute> = attrs
+    let mut into: Option<bool> = None;
+    let mut map: HashMap<&str, Box<dyn FnMut(TokenStream2) -> ()>> = Default::default();
+    map.insert(
+        "target_method",
+        Box::new(|stream| {
+            let target = syn::parse2::<TargetMethodAttribute>(stream).unwrap();
+            if name.is_some() {
+                panic!(
+                    "Multiple target_method attributes specified for {}",
+                    method.sig.ident
+                )
+            }
+            name = Some(target.name.clone());
+        }),
+    );
+    map.insert(
+        "into",
+        Box::new(|_| {
+            if into.is_some() {
+                panic!(
+                    "Multiple into attributes specified for {}",
+                    method.sig.ident
+                )
+            }
+            into = Some(true);
+        }),
+    );
+
+    let attrs: Vec<&syn::Attribute> = attrs
         .iter()
         .filter(|attr| {
             if let syn::AttrStyle::Outer = attr.style {
-                if attr
-                    .path
-                    .is_ident(syn::Ident::new("target_method", attr.span()))
-                {
-                    let stream = &attr.tts;
-
-                    let target = syn::parse2::<TargetMethod>(stream.clone()).unwrap();
-                    if name.is_some() {
-                        panic!(
-                            "Multiple target_method attributes specified for {}",
-                            method.sig.ident
-                        )
+                for (ident, callback) in map.iter_mut() {
+                    if attr.path.is_ident(syn::Ident::new(ident, attr.span())) {
+                        callback(attr.tts.clone());
+                        return false;
                     }
-                    name = Some(target.name.clone());
-
-                    return false;
                 }
             }
 
             true
         })
-        .cloned()
         .collect();
 
-    (attrs, name)
+    drop(map);
+    (attrs, name, into.unwrap_or(false))
 }
 
-fn has_inline_attribute(attrs: &[syn::Attribute]) -> bool {
-    attrs
-        .iter()
-        .filter(|attr| {
-            if let syn::AttrStyle::Outer = attr.style {
-                attr.path.is_ident(syn::Ident::new("inline", attr.span()))
-            } else {
-                false
-            }
-        })
-        .count()
-        > 0
+/// Returns true if there are any `inline` attributes in the input.
+fn has_inline_attribute(attrs: &[&syn::Attribute]) -> bool {
+    attrs.iter().any(|attr| {
+        if let syn::AttrStyle::Outer = attr.style {
+            attr.path.is_ident(syn::Ident::new("inline", attr.span()))
+        } else {
+            false
+        }
+    })
 }
 
 #[proc_macro]
@@ -147,7 +168,7 @@ pub fn delegate(tokens: TokenStream) -> TokenStream {
             let signature = &input.sig;
             let inputs = &input.sig.decl.inputs;
 
-            let (attrs, name) = transform_attributes(&method.attributes, &input);
+            let (attrs, name, into) = parse_attributes(&method.attributes, &input);
 
             if input.default.is_some() {
                 panic!(
@@ -186,17 +207,25 @@ pub fn delegate(tokens: TokenStream) -> TokenStream {
             };
             let visibility = &method.visibility;
 
+            let body = quote::quote! { #delegator_attribute.#name(#(#args),*) };
             let span = input.span();
-            let terminator = match &signature.decl.output {
-                syn::ReturnType::Default => quote::quote! { ; },
-                _ => quote::quote! { .into() }
+            let body = match &signature.decl.output {
+                syn::ReturnType::Default => quote::quote! { #body; },
+                syn::ReturnType::Type(_, ret_type) => {
+                    if into {
+                        quote::quote! { std::convert::Into::<#ret_type>::into(#body) }
+                    }
+                    else {
+                        body
+                    }
+                }
             };
 
-            quote::quote_spanned! { span =>
+            quote::quote_spanned! {span=>
                 #(#attrs)*
                 #inline
                 #visibility #signature {
-                    #delegator_attribute.#name(#(#args),*)#terminator
+                    #body
                 }
             }
         });
