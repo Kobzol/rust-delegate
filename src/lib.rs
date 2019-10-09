@@ -11,7 +11,7 @@ use syn::spanned::Spanned;
 use syn::Error;
 
 mod kw {
-    syn::custom_keyword!(target);
+    syn::custom_keyword!(to);
 }
 
 struct DelegatedMethod {
@@ -40,7 +40,7 @@ struct DelegatedSegment {
 
 impl syn::parse::Parse for DelegatedSegment {
     fn parse(input: ParseStream) -> Result<Self, Error> {
-        input.parse::<kw::target>()?;
+        input.parse::<kw::to>()?;
         input.parse::<syn::Expr>().and_then(|delegator| {
             let delegator = match delegator {
                 syn::Expr::Field(_) => delegator,
