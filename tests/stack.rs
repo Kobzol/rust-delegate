@@ -13,7 +13,7 @@ impl<T> Stack<T> {
     }
 
     delegate! {
-        target self.inner {
+        to self.inner {
             #[inline(never)]
             #[target_method(len)]
             pub(crate) fn size(&self) -> usize;

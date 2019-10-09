@@ -18,7 +18,7 @@ struct Wrapper {
 
 impl Wrapper {
     delegate! {
-        target self.inner.inner {
+        to self.inner.inner {
             pub(crate) fn method(&self, num: u32) -> u32;
         }
     }
