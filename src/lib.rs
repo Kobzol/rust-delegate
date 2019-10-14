@@ -34,7 +34,7 @@ impl syn::parse::Parse for DelegatedMethod {
 }
 
 struct DelegatedSegment {
-    delegator: syn::ExprField,
+    delegator: syn::Expr,
     methods: Vec<DelegatedMethod>,
 }
 
@@ -43,7 +43,9 @@ impl syn::parse::Parse for DelegatedSegment {
         input.parse::<kw::target>()?;
         input.parse::<syn::Expr>().and_then(|delegator| {
             let delegator = match delegator {
-                syn::Expr::Field(field) => field,
+                syn::Expr::Field(_) => delegator,
+                syn::Expr::MethodCall(_) => delegator,
+                syn::Expr::Call(_) => delegator,
                 _ => panic!("Use a field expression to select delegator (e.g. self.inner)"),
             };
 
