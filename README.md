@@ -101,7 +101,7 @@ impl<T> Stack<T> {
     }
 
     delegate! {
-        target self.inner {
+        to self.inner {
             /// The number of items in the stack
             #[target_method(len)]
             pub fn size(&self) -> usize;
@@ -166,7 +166,7 @@ impl<T> MultiStack<T> {
     }
 
     delegate! {
-        target self.left {
+        to self.left {
             /// Push an item to the top of the left stack
             #[target_method(push)]
             pub fn push_left(&mut self, value: T);
@@ -175,8 +175,7 @@ impl<T> MultiStack<T> {
             #[target_method(pop)]
             pub fn pop_left(&mut self, value: T);
         }
-
-        target self.right {
+        to self.right {
             /// Push an item to the top of the right stack
             #[target_method(push)]
             pub fn push_right(&mut self, value: T);
@@ -189,11 +188,14 @@ impl<T> MultiStack<T> {
 }
 ```
 
-The target field for delegation can also be nested:
+The expression after `to` can also be a nested field or even a function/method call:
 ```rust
 struct Inner;
 impl Inner {
     pub fn method(&self, num: u32) -> u32 {
+        num
+    }
+    pub fn method2(&self, num: u32) -> u32 {
         num
     }
 }
@@ -204,13 +206,20 @@ struct Inner2 {
 
 struct Wrapper {
     inner: Inner2,
+    mutex: std::sync::Mutex<Inner>
 }
+
+fn global_fn(num: u32) -> u32 { num }
 
 impl Wrapper {
     delegate! {
         target self.inner.inner {
             pub(crate) fn method(&self, num: u32) -> u32;
         }
+        target self.mutex.lock().unwrap() {
+            fn method2(&self, num: u32) -> u32
+        }
+        target global_fn
     }
 }
 ```
@@ -230,7 +239,7 @@ impl Inner {
 struct Wrapper { inner: Inner }
 impl Wrapper {
     delegate! {
-        target self.inner.inner {
+        to self.inner.inner {
             pub fn method(&self, num: u32);
             pub fn method2(&self, num: u32) -> u64;
         }

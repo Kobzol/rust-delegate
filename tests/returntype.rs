@@ -16,7 +16,7 @@ fn test_rettype() {
 
     impl Wrapper {
         delegate! {
-            target self.inner {
+            to self.inner {
                 pub(crate) fn method(&self, num: u32);
 
                 #[into]
@@ -57,7 +57,7 @@ fn test_rettype_generic() {
 
     impl<T: TestTrait> Wrapper<T> {
         delegate! {
-            target self.inner {
+            to self.inner {
                 pub(crate) fn method(&self) -> T;
             }
         }
