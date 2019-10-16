@@ -12,6 +12,7 @@ use syn::Error;
 
 mod kw {
     syn::custom_keyword!(to);
+    syn::custom_keyword!(target);
 }
 
 struct DelegatedMethod {
@@ -40,7 +41,13 @@ struct DelegatedSegment {
 
 impl syn::parse::Parse for DelegatedSegment {
     fn parse(input: ParseStream) -> Result<Self, Error> {
-        input.parse::<kw::to>()?;
+        if let Ok(keyword) = input.parse::<kw::target>() {
+            return Err(Error::new(keyword.span(), "You are using the old `target` expression, which is deprecated. Please replace `target` with `to`."));
+        }
+        else {
+            input.parse::<kw::to>()?;
+        }
+
         input.parse::<syn::Expr>().and_then(|delegator| {
             let delegator = match delegator {
                 syn::Expr::Field(_) => delegator,
