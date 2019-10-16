@@ -7,16 +7,24 @@ impl Inner {
     pub fn method(&self, num: u32) -> u32 {
         num
     }
+    pub fn method2(&self, num: u32) -> u32 {
+        num
+    }
 }
 
 struct Wrapper {
     inner: Mutex<Inner>,
 }
 
+fn global_fn() -> Inner { Inner }
+
 impl Wrapper {
     delegate! {
-        target self.inner.lock().unwrap() {
+        to self.inner.lock().unwrap() {
             pub(crate) fn method(&self, num: u32) -> u32;
+        }
+        to global_fn() {
+            pub(crate) fn method2(&self, num: u32) -> u32;
         }
     }
 }
@@ -28,4 +36,5 @@ fn test_mutex() {
     };
 
     assert_eq!(wrapper.method(3), 3);
+    assert_eq!(wrapper.method2(3), 3);
 }
