@@ -43,8 +43,7 @@ impl syn::parse::Parse for DelegatedSegment {
     fn parse(input: ParseStream) -> Result<Self, Error> {
         if let Ok(keyword) = input.parse::<kw::target>() {
             return Err(Error::new(keyword.span(), "You are using the old `target` expression, which is deprecated. Please replace `target` with `to`."));
-        }
-        else {
+        } else {
             input.parse::<kw::to>()?;
         }
 
@@ -141,8 +140,8 @@ fn parse_attributes<'a>(
         .filter(|attr| {
             if let syn::AttrStyle::Outer = attr.style {
                 for (ident, callback) in map.iter_mut() {
-                    if attr.path.is_ident(syn::Ident::new(ident, attr.span())) {
-                        callback(attr.tts.clone());
+                    if attr.path.is_ident(ident) {
+                        callback(attr.tokens.clone());
                         return false;
                     }
                 }
@@ -160,7 +159,7 @@ fn parse_attributes<'a>(
 fn has_inline_attribute(attrs: &[&syn::Attribute]) -> bool {
     attrs.iter().any(|attr| {
         if let syn::AttrStyle::Outer = attr.style {
-            attr.path.is_ident(syn::Ident::new("inline", attr.span()))
+            attr.path.is_ident("inline")
         } else {
             false
         }
@@ -175,7 +174,7 @@ pub fn delegate(tokens: TokenStream) -> TokenStream {
         let functions = delegator.methods.iter().map(|method| {
             let input = &method.method;
             let signature = &input.sig;
-            let inputs = &input.sig.decl.inputs;
+            let inputs = &input.sig.inputs;
 
             let (attrs, name, into) = parse_attributes(&method.attributes, &input);
 
@@ -188,7 +187,7 @@ pub fn delegate(tokens: TokenStream) -> TokenStream {
             let args: Vec<syn::Ident> = inputs
                 .iter()
                 .filter_map(|i| match i {
-                    syn::FnArg::Captured(capt) => match &capt.pat {
+                    syn::FnArg::Typed(typed) => match &*typed.pat {
                         syn::Pat::Ident(ident) => {
                             if ident.ident == "self" {
                                 None
@@ -218,7 +217,7 @@ pub fn delegate(tokens: TokenStream) -> TokenStream {
 
             let body = quote::quote! { #delegator_attribute.#name(#(#args),*) };
             let span = input.span();
-            let body = match &signature.decl.output {
+            let body = match &signature.output {
                 syn::ReturnType::Default => quote::quote! { #body; },
                 syn::ReturnType::Type(_, ret_type) => {
                     if into {
