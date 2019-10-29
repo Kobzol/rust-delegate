@@ -20,7 +20,7 @@ fn test_rettype() {
                 pub(crate) fn method(&self, num: u32);
 
                 #[into]
-                #[target_method(method)]
+                #[call(method)]
                 pub(crate) fn method_conv(&self, num: u32) -> u64;
             }
         }

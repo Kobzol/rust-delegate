@@ -15,7 +15,7 @@ impl<T> Stack<T> {
     delegate! {
         to self.inner {
             #[inline(never)]
-            #[target_method(len)]
+            #[call(len)]
             pub(crate) fn size(&self) -> usize;
 
             /// doc comment
@@ -25,7 +25,7 @@ impl<T> Stack<T> {
             fn push(&mut self, v: T);
             pub fn pop(&mut self) -> Option<T>;
 
-            #[target_method(last)]
+            #[call(last)]
             #[inline(never)]
             fn peek(&self) -> Option<&T>;
             fn clear(&mut self);
