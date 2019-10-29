@@ -83,22 +83,22 @@ impl syn::parse::Parse for DelegationBlock {
     }
 }
 
-struct TargetMethodAttribute {
+struct CallMethodAttribute {
     name: syn::Ident,
 }
 
-impl syn::parse::Parse for TargetMethodAttribute {
+impl syn::parse::Parse for CallMethodAttribute {
     fn parse(input: ParseStream) -> Result<Self, Error> {
         let content;
         syn::parenthesized!(content in input);
-        Ok(TargetMethodAttribute {
+        Ok(CallMethodAttribute {
             name: content.parse()?,
         })
     }
 }
 
 /// Iterates through the attributes of a method and filters special attributes.
-/// target_method => sets the name of the target method
+/// call => sets the name of the target method to call
 /// into => generates a `into()` call for the returned value
 ///
 /// Returns tuple (blackbox attributes, name, into)
@@ -110,16 +110,22 @@ fn parse_attributes<'a>(
     let mut into: Option<bool> = None;
     let mut map: HashMap<&str, Box<dyn FnMut(TokenStream2) -> ()>> = Default::default();
     map.insert(
-        "target_method",
+        "call",
         Box::new(|stream| {
-            let target = syn::parse2::<TargetMethodAttribute>(stream).unwrap();
+            let target = syn::parse2::<CallMethodAttribute>(stream).unwrap();
             if name.is_some() {
                 panic!(
-                    "Multiple target_method attributes specified for {}",
+                    "Multiple call attributes specified for {}",
                     method.sig.ident
                 )
             }
             name = Some(target.name.clone());
+        }),
+    );
+    map.insert(
+        "target_method",
+        Box::new(|_| {
+            panic!("You are using the old `target_method` attribute, which is deprecated. Please replace `target_method` with `call`.");
         }),
     );
     map.insert(
@@ -134,7 +140,6 @@ fn parse_attributes<'a>(
             into = Some(true);
         }),
     );
-
     let attrs: Vec<&syn::Attribute> = attrs
         .iter()
         .filter(|attr| {

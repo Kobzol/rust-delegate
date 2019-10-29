@@ -103,7 +103,7 @@ impl<T> Stack<T> {
     delegate! {
         to self.inner {
             /// The number of items in the stack
-            #[target_method(len)]
+            #[call(len)]
             pub fn size(&self) -> usize;
 
             /// Whether the stack is empty
@@ -116,7 +116,7 @@ impl<T> Stack<T> {
             pub fn pop(&mut self) -> Option<T>;
 
             /// Accessing the top item without removing it from the stack
-            #[target_method(last)]
+            #[call(last)]
             pub fn peek(&self) -> Option<&T>;
 
             /// Remove all items from the stack
@@ -144,7 +144,7 @@ inserting an  explicit `#[inline]` attribute (such as `#[inline(always)]` or
 
 As seen in the example above, if the name of the method does not match, you can
 override the inferred name (same name as your struct method) with the custom
-`#[target_method(...)]` attribute. (This attribute is removed by the macro
+`#[call(...)]` attribute. (This attribute is removed by the macro
 during expansion, so it does not rely on the experimental "custom_attribute"
 feature.)
 
@@ -168,20 +168,20 @@ impl<T> MultiStack<T> {
     delegate! {
         to self.left {
             /// Push an item to the top of the left stack
-            #[target_method(push)]
+            #[call(push)]
             pub fn push_left(&mut self, value: T);
 
             /// Remove an item from the top of the left stack
-            #[target_method(pop)]
+            #[call(pop)]
             pub fn pop_left(&mut self, value: T);
         }
         to self.right {
             /// Push an item to the top of the right stack
-            #[target_method(push)]
+            #[call(push)]
             pub fn push_right(&mut self, value: T);
 
             /// Remove an item from the top of the right stack
-            #[target_method(pop)]
+            #[call(pop)]
             pub fn pop_right(&mut self, value: T);
         }
     }
