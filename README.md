@@ -4,89 +4,13 @@ Method delegation with less boilerplate
 [![Build Status](https://travis-ci.com/chancancode/rust-delegate.svg?branch=master)](https://travis-ci.com/chancancode/rust-delegate)
 [![Crates.io](https://img.shields.io/crates/v/delegate.svg)](https://crates.io/crates/delegate)
 
-This crate helps remove some boilerplate for structs that simply delegates
-most of its methods to one or more fields.
+This crate removes some boilerplate for structs that simply delegate
+some of their methods to one or more of their fields.
 
-For example, let's say we want to implement a stack in Rust. In case you aren't
-familiar with the idea, a stack is a data structure in which items are inserted
-and accessed in a LIFO (Last-In, First-Out) manner. Typically, a stack supports
-the following basic operations:
+It gives you the `delegate!` macro, which delegates method calls to selected expressions (usually inner fields).
 
-* **push**: insert an item to the top of the stack.
-* **pop**: remove an item from the top of the stack (if stack is not empty).
-
-In addition, a stack may support secondary operations such as querying if the
-stack is empty, the current size of the stack, a **peek** operation that gives
-access to the top item without removing it, a method to clear the stack and so
-on.
-
-One way to implement such a data structure in Rust would be to use a `Vec`:
-
-```rust
-#[derive(Clone, Debug)]
-struct Stack<T> {
-    inner: Vec<T>,
-}
-
-impl<T> Stack<T> {
-    /// Allocate an empty stack
-    pub fn new() -> Stack<T> {
-        Stack { inner: vec![] }
-    }
-
-    /// The number of items in the stack
-    pub fn size(&self) -> usize {
-        self.inner.len()
-    }
-
-    /// Whether the stack is empty
-    pub fn is_empty(&self) -> bool {
-        self.inner.is_empty()
-    }
-
-    /// Push an item to the top of the stack
-    pub fn push(&mut self, value: T) {
-        self.inner.push(value)
-    }
-
-    /// Remove an item from the top of the stack
-    pub fn pop(&mut self) -> Option<T> {
-        self.inner.pop()
-    }
-
-    /// Accessing the top item without removing it from the stack
-    pub fn peek(&self) -> Option<&T> {
-        self.inner.last()
-    }
-
-    /// Remove all items from the stack
-    pub fn clear(&mut self) {
-        self.inner.clear()
-    }
-}
-```
-
-As you can see, `Vec` already supports most of the operations we needed, so in
-most cases our implementation is simply delegating to the underlying `Vec`,
-except occasionally re-mapping the method to a different name (e.g. `peek()` is
-called `last()` in `Vec`).
-
-The fact that these implementations are boring (simply delegating to another
-struct) is probably notable and worth calling out. If the reader of the code is
-already familiar with the behavior with the other struct, they can safely gloss
-over these methods and focus on the more interesting ones. Further more, if we
-can trust that the struct we are delegating to has a solid implementation and
-is well tested, we can probably just write a simple smoke test and not worry
-about re-testing the edge cases.
-
-Unfortunately, this detail could easily get lost, especially when these methods
-are buried within other non-delegating methods. The only way to be sure is to
-carefully read the implementation to confirm that they aren't doing anything
-more, which somewhat defeats the purpose.
-
-The `delegate!` macro in this crate helps solve this problem by making your
-delegating methods more declarative:
-
+## Example:
+A Stack data structure implemented using an inner Vec via delegation.
 ```rust
 use delegate::delegate;
 
@@ -94,160 +18,96 @@ use delegate::delegate;
 struct Stack<T> {
     inner: Vec<T>,
 }
-
 impl<T> Stack<T> {
-    pub fn new() -> Stack<T> {
-        Stack { inner: vec![] }
+    pub fn new() -> Self<T> {
+        Self { inner: vec![] }
     }
 
     delegate! {
         to self.inner {
-            /// The number of items in the stack
+            pub fn is_empty(&self) -> bool;
+            pub fn push(&mut self, value: T);
+            pub fn pop(&mut self) -> Option<T>;
+            pub fn clear(&mut self);
+
             #[call(len)]
             pub fn size(&self) -> usize;
 
-            /// Whether the stack is empty
-            pub fn is_empty(&self) -> bool;
-
-            /// Push an item to the top of the stack
-            pub fn push(&mut self, value: T);
-
-            /// Remove an item from the top of the stack
-            pub fn pop(&mut self) -> Option<T>;
-
-            /// Accessing the top item without removing it from the stack
             #[call(last)]
             pub fn peek(&self) -> Option<&T>;
 
-            /// Remove all items from the stack
-            pub fn clear(&mut self);
         }
     }
 }
 ```
 
-This macro invocation would generate exactly the same code as we had written by
-hand in the example above (with one minor difference, see below). Not only did
-you save a few lines of typing, you are making your intent more clear to your
-readers as well.
-
-The macro support all the usual syntactic elements that are valid around method
-declarations, such as (doc) comments, attributes, `pub` modifiers, generics,
-lifetimes, return type and where clauses. The only difference is that instead
-of providing a block for the method body, you simply end it with a `;` after
-the method signature. The macro will automatically generate a suitable body.
-
-The macro will also automatically insert the `#[inline]` hint for the compiler,
-which is often desirable for delegating methods. You can override this by
-inserting an  explicit `#[inline]` attribute (such as `#[inline(always)]` or
-`#[inline(never)]`).
-
-As seen in the example above, if the name of the method does not match, you can
-override the inferred name (same name as your struct method) with the custom
-`#[call(...)]` attribute. (This attribute is removed by the macro
-during expansion, so it does not rely on the experimental "custom_attribute"
-feature.)
-
-You may also delegate different methods to different fields inside the same
-`delegate!` block. For example:
-
+## Features:
+- Delegate to a method with a different name
 ```rust
-use delegate::delegate;
-
-#[derive(Clone, Debug)]
-struct MultiStack<T> {
-    left: Vec<T>,
-    right: Vec<T>,
-}
-
-impl<T> MultiStack<T> {
-    pub fn new() -> MultiStack<T> {
-        MultiStack { left: vec![], right: vec![] }
-    }
-
+struct Stack { inner: Vec<u32> }
+impl Stack {
     delegate! {
-        to self.left {
-            /// Push an item to the top of the left stack
+        to self.inner {
             #[call(push)]
-            pub fn push_left(&mut self, value: T);
-
-            /// Remove an item from the top of the left stack
-            #[call(pop)]
-            pub fn pop_left(&mut self, value: T);
-        }
-        to self.right {
-            /// Push an item to the top of the right stack
-            #[call(push)]
-            pub fn push_right(&mut self, value: T);
-
-            /// Remove an item from the top of the right stack
-            #[call(pop)]
-            pub fn pop_right(&mut self, value: T);
+            pub fn add(&mut self, value: u32);
         }
     }
 }
 ```
-
-The expression after `to` can also be a nested field or even a function/method call:
+- Use an arbitrary inner field expression
 ```rust
-struct Inner;
-impl Inner {
-    pub fn method(&self, num: u32) -> u32 {
-        num
-    }
-    pub fn method2(&self, num: u32) -> u32 {
-        num
-    }
-}
-
-struct Inner2 {
-    inner: Inner
-}
-
-struct Wrapper {
-    inner: Inner2,
-    mutex: std::sync::Mutex<Inner>
-}
-
-fn global_fn(num: u32) -> u32 { num }
-
+struct Wrapper { inner: Rc<RefCell<Vec<u32>>> }
 impl Wrapper {
     delegate! {
-        target self.inner.inner {
-            pub(crate) fn method(&self, num: u32) -> u32;
+        to self.inner.deref().borrow_mut() {
+            pub fn push(&mut self, val: u32);
         }
-        target self.mutex.lock().unwrap() {
-            fn method2(&self, num: u32) -> u32
-        }
-        target global_fn
     }
 }
 ```
-
-You can change the return type of the delegated method.
-If you don't want to your delegating method to return anything, you can omit the return type
-from the declaration. This will cause the method to return `()`.
-Or you can choose a different datatype which can be converted using the `From` trait from the
-original datatype.
-
+- Change the return type of the delegated method using a `From` impl or omit it altogether
 ```rust
 struct Inner;
 impl Inner {
-    pub fn method1(&self, num: u32) -> u32 { num }
-    pub fn method2(&self, num: u32) -> u32 { num }
+    pub fn method(&self, num: u32) -> u32 { num }
 }
 struct Wrapper { inner: Inner }
 impl Wrapper {
     delegate! {
-        to self.inner.inner {
-            pub fn method(&self, num: u32);
-            pub fn method2(&self, num: u32) -> u64;
+        to self.inner {
+            // calls method, converts result to u64
+            pub fn method(&self, num: u32) -> u64;
+
+            // calls method, returns ()
+            #[call(method)]
+            pub fn method_noreturn(&self, num: u32);
         }
     }
 }
 ```
-
-The `delegate!` macro is implemented as a procedural macro.
+- Delegate to multiple fields
+```rust
+struct MultiStack {
+    left: Vec<u32>,
+    right: Vec<u32>,
+}
+impl MultiStack {
+    delegate! {
+        to self.left {
+            /// Push an item to the top of the left stack
+            #[call(push)]
+            pub fn push_left(&mut self, value: u32);
+        }
+        to self.right {
+            /// Push an item to the top of the right stack
+            #[call(push)]
+            pub fn push_right(&mut self, value: u32);
+        }
+    }
+}
+```
+- Delegation of generic methods
+- Inserts `#[inline(always)]` automatically (unless you specify `#[inline]` manually on the method)
 
 ## License
 
