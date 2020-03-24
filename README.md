@@ -76,6 +76,7 @@ impl Wrapper {
     delegate! {
         to self.inner {
             // calls method, converts result to u64
+            #[into]
             pub fn method(&self, num: u32) -> u64;
 
             // calls method, returns ()

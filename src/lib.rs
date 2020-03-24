@@ -6,6 +6,8 @@
 //! ## Features:
 //! - Delegate to a method with a different name
 //! ```rust
+//! use delegate::delegate;
+//!
 //! struct Stack { inner: Vec<u32> }
 //! impl Stack {
 //!     delegate! {
@@ -18,8 +20,11 @@
 //! ```
 //! - Use an arbitrary inner field expression
 //! ```rust
+//! use delegate::delegate;
+//!
 //! use std::rc::Rc;
 //! use std::cell::RefCell;
+//! use std::ops::Deref;
 //!
 //! struct Wrapper { inner: Rc<RefCell<Vec<u32>>> }
 //! impl Wrapper {
@@ -32,6 +37,8 @@
 //! ```
 //! - Change the return type of the delegated method using a `From` impl or omit it altogether
 //! ```rust
+//! use delegate::delegate;
+//!
 //! struct Inner;
 //! impl Inner {
 //!     pub fn method(&self, num: u32) -> u32 { num }
@@ -40,10 +47,11 @@
 //! impl Wrapper {
 //!     delegate! {
 //!         to self.inner {
-//!             //! calls method, converts result to u64
+//!             // calls method, converts result to u64
+//!             #[into]
 //!             pub fn method(&self, num: u32) -> u64;
 //!
-//!             //! calls method, returns ()
+//!             // calls method, returns ()
 //!             #[call(method)]
 //!             pub fn method_noreturn(&self, num: u32);
 //!         }
@@ -52,6 +60,8 @@
 //! ```
 //! - Delegate to multiple fields
 //! ```rust
+//! use delegate::delegate;
+//!
 //! struct MultiStack {
 //!     left: Vec<u32>,
 //!     right: Vec<u32>,
@@ -59,12 +69,12 @@
 //! impl MultiStack {
 //!     delegate! {
 //!         to self.left {
-//!             ///! Push an item to the top of the left stack
+//!             // Push an item to the top of the left stack
 //!             #[call(push)]
 //!             pub fn push_left(&mut self, value: u32);
 //!         }
 //!         to self.right {
-//!             ///! Push an item to the top of the right stack
+//!             // Push an item to the top of the right stack
 //!             #[call(push)]
 //!             pub fn push_right(&mut self, value: u32);
 //!         }
