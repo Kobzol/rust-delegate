@@ -206,7 +206,7 @@ fn parse_attributes<'a>(
                     method.sig.ident
                 )
             }
-            name = Some(target.name.clone());
+            name = Some(target.name);
         }),
     );
     map.insert(
