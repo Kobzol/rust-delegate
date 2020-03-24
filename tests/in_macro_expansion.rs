@@ -4,15 +4,15 @@
 ///
 use delegate::delegate;
 
-trait Trait{
-	fn method_to_delegate(&self) -> bool;
+trait Trait {
+    fn method_to_delegate(&self) -> bool;
 }
 
 struct Struct1();
 impl Trait for Struct1 {
-	fn method_to_delegate(&self) -> bool {
-		true
-	}
+    fn method_to_delegate(&self) -> bool {
+        true
+    }
 }
 
 struct Struct2(pub Struct1);
@@ -20,20 +20,20 @@ struct Struct2(pub Struct1);
 // We use a macro to impl 'Trait' for 'Struct2' such that
 // the target is a variable in the macro.
 macro_rules! some_macro {
-	($delegate_to:expr) => {
-		impl Trait for Struct2 {
-			delegate!{
-				// '$delegate' will expand to 'self.0' before ´delegate!' is expanded.
-				to $delegate_to {
-					fn method_to_delegate(&self) -> bool;
-				}
-			}
-		}
-	}
+    ($delegate_to:expr) => {
+        impl Trait for Struct2 {
+            delegate! {
+                // '$delegate' will expand to 'self.0' before ´delegate!' is expanded.
+                to $delegate_to {
+                    fn method_to_delegate(&self) -> bool;
+                }
+            }
+        }
+    };
 }
-some_macro!{self.0}
+some_macro! {self.0}
 
 #[test]
 fn test() {
-	assert!(Struct2(Struct1()).method_to_delegate());
+    assert!(Struct2(Struct1()).method_to_delegate());
 }

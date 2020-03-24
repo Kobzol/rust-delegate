@@ -16,7 +16,9 @@ struct Wrapper {
     inner: Mutex<Inner>,
 }
 
-fn global_fn() -> Inner { Inner }
+fn global_fn() -> Inner {
+    Inner
+}
 
 impl Wrapper {
     delegate! {
@@ -32,7 +34,7 @@ impl Wrapper {
 #[test]
 fn test_mutex() {
     let wrapper = Wrapper {
-        inner: Mutex::new(Inner)
+        inner: Mutex::new(Inner),
     };
 
     assert_eq!(wrapper.method(3), 3);
