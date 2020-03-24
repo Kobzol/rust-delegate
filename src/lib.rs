@@ -1,3 +1,79 @@
+//! This crate removes some boilerplate for structs that simply delegate
+//! some of their methods to one or more of their fields.
+//!
+//! It gives you the `delegate!` macro, which delegates method calls to selected expressions (usually inner fields).
+//!
+//! ## Features:
+//! - Delegate to a method with a different name
+//! ```rust
+//! struct Stack { inner: Vec<u32> }
+//! impl Stack {
+//!     delegate! {
+//!         to self.inner {
+//!             #[call(push)]
+//!             pub fn add(&mut self, value: u32);
+//!         }
+//!     }
+//! }
+//! ```
+//! - Use an arbitrary inner field expression
+//! ```rust
+//! use std::rc::Rc;
+//! use std::cell::RefCell;
+//!
+//! struct Wrapper { inner: Rc<RefCell<Vec<u32>>> }
+//! impl Wrapper {
+//!     delegate! {
+//!         to self.inner.deref().borrow_mut() {
+//!             pub fn push(&mut self, val: u32);
+//!         }
+//!     }
+//! }
+//! ```
+//! - Change the return type of the delegated method using a `From` impl or omit it altogether
+//! ```rust
+//! struct Inner;
+//! impl Inner {
+//!     pub fn method(&self, num: u32) -> u32 { num }
+//! }
+//! struct Wrapper { inner: Inner }
+//! impl Wrapper {
+//!     delegate! {
+//!         to self.inner {
+//!             //! calls method, converts result to u64
+//!             pub fn method(&self, num: u32) -> u64;
+//!
+//!             //! calls method, returns ()
+//!             #[call(method)]
+//!             pub fn method_noreturn(&self, num: u32);
+//!         }
+//!     }
+//! }
+//! ```
+//! - Delegate to multiple fields
+//! ```rust
+//! struct MultiStack {
+//!     left: Vec<u32>,
+//!     right: Vec<u32>,
+//! }
+//! impl MultiStack {
+//!     delegate! {
+//!         to self.left {
+//!             ///! Push an item to the top of the left stack
+//!             #[call(push)]
+//!             pub fn push_left(&mut self, value: u32);
+//!         }
+//!         to self.right {
+//!             ///! Push an item to the top of the right stack
+//!             #[call(push)]
+//!             pub fn push_right(&mut self, value: u32);
+//!         }
+//!     }
+//! }
+//! ```
+//! - Delegation of generic methods
+//! - Inserts `#[inline(always)]` automatically (unless you specify `#[inline]` manually on the method)
+
 extern crate proc_macro;
 
 use proc_macro::TokenStream;
