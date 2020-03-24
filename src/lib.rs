@@ -52,6 +52,7 @@ impl syn::parse::Parse for DelegatedSegment {
                 syn::Expr::Field(_) => delegator,
                 syn::Expr::MethodCall(_) => delegator,
                 syn::Expr::Call(_) => delegator,
+                syn::Expr::Group(group) => *group.expr,
                 _ => panic!("Use a field expression to select delegator (e.g. self.inner)"),
             };
 
