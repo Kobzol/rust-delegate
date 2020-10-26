@@ -133,7 +133,7 @@ impl syn::parse::Parse for DelegatedSegment {
             input.parse::<kw::to>()?;
         }
 
-        input.parse::<syn::Expr>().and_then(|delegator| {
+        syn::Expr::parse_without_eager_brace(input).and_then(|delegator| {
             let content;
             syn::braced!(content in input);
 
