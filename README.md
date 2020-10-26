@@ -1,7 +1,7 @@
 Method delegation with less boilerplate
 =======================================
 
-[![Build Status](https://github.com/chancancode/rust-delegate/workflows/.github/workflows/ci.yml/badge.svg](https://github.com/chancancode/rust-delegate/actions)
+[![Build Status](https://github.com/chancancode/rust-delegate/workflows/Tests/badge.svg)](https://github.com/chancancode/rust-delegate/actions)
 [![Crates.io](https://img.shields.io/crates/v/delegate.svg)](https://crates.io/crates/delegate)
 
 This crate removes some boilerplate for structs that simply delegate
