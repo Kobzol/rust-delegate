@@ -90,7 +90,6 @@ use proc_macro::TokenStream;
 
 use quote::quote;
 use std::collections::HashMap;
-use syn;
 use syn::export::TokenStream2;
 use syn::parse::ParseStream;
 use syn::spanned::Spanned;
@@ -187,7 +186,7 @@ fn parse_attributes<'a>(
 ) -> (Vec<&'a syn::Attribute>, Option<syn::Ident>, bool) {
     let mut name: Option<syn::Ident> = None;
     let mut into: Option<bool> = None;
-    let mut map: HashMap<&str, Box<dyn FnMut(TokenStream2) -> ()>> = Default::default();
+    let mut map: HashMap<&str, Box<dyn FnMut(TokenStream2)>> = Default::default();
     map.insert(
         "call",
         Box::new(|stream| {

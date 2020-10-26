@@ -1,4 +1,4 @@
-///
+/*///
 /// Tests that a macro can expand into a delegate block,
 /// where the target comes from a macro variable.
 ///
@@ -23,7 +23,7 @@ macro_rules! some_macro {
     ($delegate_to:expr) => {
         impl Trait for Struct2 {
             delegate! {
-                // '$delegate' will expand to 'self.0' before ´delegate!' is expanded.
+                // '$delegate_to' will expand to 'self.0' before ´delegate!' is expanded.
                 to $delegate_to {
                     fn method_to_delegate(&self) -> bool;
                 }
@@ -31,9 +31,10 @@ macro_rules! some_macro {
         }
     };
 }
-some_macro! {self.0}
+some_macro!(self.0);
 
 #[test]
 fn test() {
     assert!(Struct2(Struct1()).method_to_delegate());
 }
+*/
