@@ -76,7 +76,9 @@ fn test_delegate_self() {
     struct S;
 
     impl S {
-        fn foo(&self) -> u32 { 1 }
+        fn foo(&self) -> u32 {
+            1
+        }
     }
 
     impl Foo for S {
@@ -99,7 +101,9 @@ fn test_delegate_tuple() {
 
     struct S;
     impl S {
-        fn foo(&self) -> u32 { 1 }
+        fn foo(&self) -> u32 {
+            1
+        }
     }
 
     struct T(S);
