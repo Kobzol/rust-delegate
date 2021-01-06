@@ -6,7 +6,7 @@ name: Tests
 
 jobs:
   test:
-    name: CI
+    name: Test
     runs-on: ubuntu-latest
     strategy:
       matrix:
