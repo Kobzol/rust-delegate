@@ -109,6 +109,26 @@ impl MultiStack {
 ```
 - Delegation of generic methods
 - Inserts `#[inline(always)]` automatically (unless you specify `#[inline]` manually on the method)
+- Delegate with additional arguments appended to the argument list
+```rust
+use delegate::delegate;
+struct Inner;
+impl Inner {
+    pub fn method(&self, num: u32, factor: u32, offset: u32) -> u32 { factor * num + offset }
+}
+struct Wrapper { inner: Inner, default_offset: u32 }
+impl Wrapper {
+    delegate! {
+        to self.inner {
+            // Calls `method` so that `2` is passed in as the `factor`
+            // argument and `self.default_offset` is passed in as the
+            // `offset` argument
+            #[extra_args(2, self.default_offset)]
+            pub fn method(&self, num: u32) -> u32;
+        }
+    }
+}
+```
 
 ## License
 

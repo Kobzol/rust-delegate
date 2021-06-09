@@ -83,6 +83,27 @@
 //! ```
 //! - Delegation of generic methods
 //! - Inserts `#[inline(always)]` automatically (unless you specify `#[inline]` manually on the method)
+//! - Delegate with additional arguments appended to the argument list
+//! ```rust
+//! use delegate::delegate;
+//!
+//! struct Inner;
+//! impl Inner {
+//!     pub fn method(&self, num: u32, factor: u32, offset: u32) -> u32 { factor * num + offset }
+//! }
+//! struct Wrapper { inner: Inner, default_offset: u32 }
+//! impl Wrapper {
+//!     delegate! {
+//!         to self.inner {
+//!             // Calls `method` so that `2` is passed in as the `factor`
+//!             // argument and `self.default_offset` is passed in as the
+//!             // `offset` argument
+//!             #[extra_args(2, self.default_offset)]
+//!             pub fn method(&self, num: u32) -> u32;
+//!         }
+//!     }
+//! }
+//! ```
 
 extern crate proc_macro;
 
@@ -175,6 +196,24 @@ impl syn::parse::Parse for CallMethodAttribute {
     }
 }
 
+struct ExtraArgumentAttribute {
+    expression: Vec<syn::Expr>,
+}
+
+impl syn::parse::Parse for ExtraArgumentAttribute {
+    fn parse(input: ParseStream) -> Result<Self, Error> {
+        let content;
+        syn::parenthesized!(content in input);
+        let punctuated_expressions =
+            syn::punctuated::Punctuated::<syn::Expr, syn::token::Comma>::parse_terminated(
+                &content,
+            )?;
+        Ok(ExtraArgumentAttribute {
+            expression: punctuated_expressions.into_iter().collect(),
+        })
+    }
+}
+
 /// Iterates through the attributes of a method and filters special attributes.
 /// call => sets the name of the target method to call
 /// into => generates a `into()` call for the returned value
@@ -183,9 +222,15 @@ impl syn::parse::Parse for CallMethodAttribute {
 fn parse_attributes<'a>(
     attrs: &'a [syn::Attribute],
     method: &syn::TraitItemMethod,
-) -> (Vec<&'a syn::Attribute>, Option<syn::Ident>, bool) {
+) -> (
+    Vec<&'a syn::Attribute>,
+    Option<syn::Ident>,
+    bool,
+    Vec<syn::Expr>,
+) {
     let mut name: Option<syn::Ident> = None;
     let mut into: Option<bool> = None;
+    let mut extra_args: Option<Vec<syn::Expr>> = None;
     let mut map: HashMap<&str, Box<dyn FnMut(TokenStream2)>> = Default::default();
     map.insert(
         "call",
@@ -198,6 +243,19 @@ fn parse_attributes<'a>(
                 )
             }
             name = Some(target.name);
+        }),
+    );
+    map.insert(
+        "extra_args",
+        Box::new(|stream| {
+            let target = syn::parse2::<ExtraArgumentAttribute>(stream).unwrap();
+            if extra_args.is_some() {
+                panic!(
+                    "Multiple `extra_args` attributes specified for {}",
+                    method.sig.ident
+                )
+            }
+            extra_args = Some(target.expression);
         }),
     );
     map.insert(
@@ -235,7 +293,12 @@ fn parse_attributes<'a>(
         .collect();
 
     drop(map);
-    (attrs, name, into.unwrap_or(false))
+    (
+        attrs,
+        name,
+        into.unwrap_or(false),
+        extra_args.unwrap_or(vec![]),
+    )
 }
 
 /// Returns true if there are any `inline` attributes in the input.
@@ -259,7 +322,7 @@ pub fn delegate(tokens: TokenStream) -> TokenStream {
             let signature = &input.sig;
             let inputs = &input.sig.inputs;
 
-            let (attrs, name, into) = parse_attributes(&method.attributes, &input);
+            let (attrs, name, into, extra_args) = parse_attributes(&method.attributes, &input);
 
             if input.default.is_some() {
                 panic!(
@@ -267,7 +330,7 @@ pub fn delegate(tokens: TokenStream) -> TokenStream {
                     signature.ident
                 );
             }
-            let args: Vec<syn::Ident> = inputs
+            let mut args: Vec<syn::Expr> = inputs
                 .iter()
                 .filter_map(|i| match i {
                     syn::FnArg::Typed(typed) => match &*typed.pat {
@@ -285,7 +348,18 @@ pub fn delegate(tokens: TokenStream) -> TokenStream {
                     },
                     _ => None,
                 })
+                .map(|ident| {
+                    // Wrap Idents in Exprs to unify the argument list with extra args.
+                    let path_segment = syn::PathSegment { ident, arguments: syn::PathArguments::None };
+                    let mut segments = syn::punctuated::Punctuated::new();
+                    segments.push(path_segment);
+                    let path = syn::Path { leading_colon: None, segments };
+                    syn::Expr::from(syn::ExprPath { attrs: Vec::new(), qself: None, path })
+                })                
                 .collect();
+            
+            // Append list of extra args at the end of the list of args generated from the signature.
+            args.extend(extra_args);
 
             let name = match &name {
                 Some(n) => &n,
