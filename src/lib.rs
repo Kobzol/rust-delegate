@@ -196,11 +196,11 @@ impl syn::parse::Parse for CallMethodAttribute {
     }
 }
 
-struct ExtraArgumentAttribute {
+struct AppendArgumentsAttribute {
     expression: Vec<syn::Expr>,
 }
 
-impl syn::parse::Parse for ExtraArgumentAttribute {
+impl syn::parse::Parse for AppendArgumentsAttribute {
     fn parse(input: ParseStream) -> Result<Self, Error> {
         let content;
         syn::parenthesized!(content in input);
@@ -208,7 +208,7 @@ impl syn::parse::Parse for ExtraArgumentAttribute {
             syn::punctuated::Punctuated::<syn::Expr, syn::token::Comma>::parse_terminated(
                 &content,
             )?;
-        Ok(ExtraArgumentAttribute {
+        Ok(AppendArgumentsAttribute {
             expression: punctuated_expressions.into_iter().collect(),
         })
     }
@@ -248,7 +248,8 @@ fn parse_attributes<'a>(
     map.insert(
         "append_args",
         Box::new(|stream| {
-            let target = syn::parse2::<ExtraArgumentAttribute>(stream).unwrap();
+            let target = syn::parse2::<AppendArgumentsAttribute>(stream)
+                .expect("append_args takes a comma-separated list of expressions");
             if append_args.is_some() {
                 panic!(
                     "Multiple `append_args` attributes specified for {}",
@@ -355,9 +356,9 @@ pub fn delegate(tokens: TokenStream) -> TokenStream {
                     segments.push(path_segment);
                     let path = syn::Path { leading_colon: None, segments };
                     syn::Expr::from(syn::ExprPath { attrs: Vec::new(), qself: None, path })
-                })                
+                })
                 .collect();
-            
+
             // Append list of extra args at the end of the list of args generated from the signature.
             args.extend(append_args);
 
