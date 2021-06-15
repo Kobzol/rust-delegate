@@ -123,7 +123,7 @@ impl Wrapper {
             // Calls `method` so that `2` is passed in as the `factor`
             // argument and `self.default_offset` is passed in as the
             // `offset` argument
-            #[extra_args(2, self.default_offset)]
+            #[append_args(2, self.default_offset)]
             pub fn method(&self, num: u32) -> u32;
         }
     }
