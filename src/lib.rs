@@ -98,7 +98,7 @@
 //!             // Calls `method` so that `2` is passed in as the `factor`
 //!             // argument and `self.default_offset` is passed in as the
 //!             // `offset` argument
-//!             #[extra_args(2, self.default_offset)]
+//!             #[append_args(2, self.default_offset)]
 //!             pub fn method(&self, num: u32) -> u32;
 //!         }
 //!     }
@@ -230,7 +230,7 @@ fn parse_attributes<'a>(
 ) {
     let mut name: Option<syn::Ident> = None;
     let mut into: Option<bool> = None;
-    let mut extra_args: Option<Vec<syn::Expr>> = None;
+    let mut append_args: Option<Vec<syn::Expr>> = None;
     let mut map: HashMap<&str, Box<dyn FnMut(TokenStream2)>> = Default::default();
     map.insert(
         "call",
@@ -246,16 +246,16 @@ fn parse_attributes<'a>(
         }),
     );
     map.insert(
-        "extra_args",
+        "append_args",
         Box::new(|stream| {
             let target = syn::parse2::<ExtraArgumentAttribute>(stream).unwrap();
-            if extra_args.is_some() {
+            if append_args.is_some() {
                 panic!(
-                    "Multiple `extra_args` attributes specified for {}",
+                    "Multiple `append_args` attributes specified for {}",
                     method.sig.ident
                 )
             }
-            extra_args = Some(target.expression);
+            append_args = Some(target.expression);
         }),
     );
     map.insert(
@@ -297,7 +297,7 @@ fn parse_attributes<'a>(
         attrs,
         name,
         into.unwrap_or(false),
-        extra_args.unwrap_or(vec![]),
+        append_args.unwrap_or(vec![]),
     )
 }
 
@@ -322,7 +322,7 @@ pub fn delegate(tokens: TokenStream) -> TokenStream {
             let signature = &input.sig;
             let inputs = &input.sig.inputs;
 
-            let (attrs, name, into, extra_args) = parse_attributes(&method.attributes, &input);
+            let (attrs, name, into, append_args) = parse_attributes(&method.attributes, &input);
 
             if input.default.is_some() {
                 panic!(
@@ -359,7 +359,7 @@ pub fn delegate(tokens: TokenStream) -> TokenStream {
                 .collect();
             
             // Append list of extra args at the end of the list of args generated from the signature.
-            args.extend(extra_args);
+            args.extend(append_args);
 
             let name = match &name {
                 Some(n) => &n,
