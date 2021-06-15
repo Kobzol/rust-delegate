@@ -1,5 +1,5 @@
 # 0.5.2 (16. 6. 2021)
-- add the `extra_args` attribute to append attributes to delegated calls (https://github.com/chancancode/rust-delegate/pull/31)
+- add the `append_args` attribute to append attributes to delegated calls (https://github.com/chancancode/rust-delegate/pull/31)
 
 # 0.5.1 (6. 1. 2021)
 - fix breaking change caused by using `syn` private API (https://github.com/chancancode/rust-delegate/issues/28) 
