@@ -323,7 +323,7 @@ pub fn delegate(tokens: TokenStream) -> TokenStream {
             let signature = &input.sig;
             let inputs = &input.sig.inputs;
 
-            let (attrs, name, into, append_args) = parse_attributes(&method.attributes, &input);
+            let (attrs, name, into, append_args) = parse_attributes(&method.attributes, input);
 
             if input.default.is_some() {
                 panic!(
@@ -363,7 +363,7 @@ pub fn delegate(tokens: TokenStream) -> TokenStream {
             args.extend(append_args);
 
             let name = match &name {
-                Some(n) => &n,
+                Some(n) => n,
                 None => &input.sig.ident
             };
             let inline = if has_inline_attribute(&attrs) {
