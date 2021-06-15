@@ -297,7 +297,7 @@ fn parse_attributes<'a>(
         attrs,
         name,
         into.unwrap_or(false),
-        append_args.unwrap_or(vec![]),
+        append_args.unwrap_or_else(Vec::new),
     )
 }
 
