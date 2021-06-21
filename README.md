@@ -109,22 +109,40 @@ impl MultiStack {
 ```
 - Delegation of generic methods
 - Inserts `#[inline(always)]` automatically (unless you specify `#[inline]` manually on the method)
-- Delegate with additional arguments appended to the argument list
+- Delegate with additional arguments (either inlined or appended to the end of the argument list)
 ```rust
 use delegate::delegate;
 struct Inner;
 impl Inner {
-    pub fn method(&self, num: u32, factor: u32, offset: u32) -> u32 { factor * num + offset }
+    pub fn polynomial(&self, a: i32, x: i32, b: i32, y: i32, c: i32) -> i32 { 
+        a + x * x + b * y + c 
+    }
 }
-struct Wrapper { inner: Inner, default_offset: u32 }
+struct Wrapper { inner: Inner, a: i32, b: i32, c: i32 }
 impl Wrapper {
     delegate! {
         to self.inner {
-            // Calls `method` so that `2` is passed in as the `factor`
-            // argument and `self.default_offset` is passed in as the
-            // `offset` argument
-            #[append_args(2, self.default_offset)]
-            pub fn method(&self, num: u32) -> u32;
+            // Calls `polynomial` on `inner` with `self.a`, `self.b` and 
+            // `self.c` passed as arguments `a`, `b`, and `c`, effectively 
+            // executing `self.a + x * x + self.b * y + self.c` 
+            pub fn polynomial(&self, [ self.a ], x: i32, [ self.b ], y: i32, [ self.c ]) -> i32 ;
+            // Calls `polynomial` on `inner` with `0`s, passed for arguments
+            // `x`, `b`, `y`,  and `c`, effectively executing 
+            // `a + 0 * 0 + 0 * 0 + 0` 
+            #[call(polynomial)] 
+            #[append_args(0, 0, 0, 0)]
+            pub fn constant(&self, a: i32) -> i32;
+            // Calls `polynomial` on `inner` with `0`s passed for arguments 
+            // `a` and `x`, and `self.b` and `self.c` for `b` and `c`, 
+            // effectively executing `0 + 0 * 0 + self.b * y + self.c`.
+            #[call(polynomial)]
+            pub fn linear(&self, [ 0 ], [ 0 ], [ self.b ], y: i32, [ self.c ]) -> i32 ;
+            // Calls `polynomial` on `inner` with `self.a`s passed for `a`, 
+            // `0`s for `b` and 'y', and `self.c` for `c` effectively executing
+            // `self.a + x * x + 0 * 0 + self.c`.
+            #[call(polynomial)]
+            #[append_args(0, 0, self.c)]
+            pub fn univariate_quadratic(&self, [ self.a ], x: i32) -> i32 ; 
         }
     }
 }

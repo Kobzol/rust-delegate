@@ -83,27 +83,43 @@
 //! ```
 //! - Delegation of generic methods
 //! - Inserts `#[inline(always)]` automatically (unless you specify `#[inline]` manually on the method)
-//! - Delegate with additional arguments appended to the argument list
+//! - Delegate with additional arguments (either inlined or appended to the end of the argument list)
 //! ```rust
 //! use delegate::delegate;
-//!
 //! struct Inner;
 //! impl Inner {
-//!     pub fn method(&self, num: u32, factor: u32, offset: u32) -> u32 { factor * num + offset }
+//!     pub fn polynomial(&self, a: i32, x: i32, b: i32, y: i32, c: i32) -> i32 {
+//!         a + x * x + b * y + c
+//!     }
 //! }
-//! struct Wrapper { inner: Inner, default_offset: u32 }
+//! struct Wrapper { inner: Inner, a: i32, b: i32, c: i32 }
 //! impl Wrapper {
 //!     delegate! {
 //!         to self.inner {
-//!             // Calls `method` so that `2` is passed in as the `factor`
-//!             // argument and `self.default_offset` is passed in as the
-//!             // `offset` argument
-//!             #[append_args(2, self.default_offset)]
-//!             pub fn method(&self, num: u32) -> u32;
+//!             // Calls `polynomial` on `inner` with `self.a`, `self.b` and
+//!             // `self.c` passed as arguments `a`, `b`, and `c`, effectively
+//!             // executing `self.a + x * x + self.b * y + self.c`
+//!             pub fn polynomial(&self, [ self.a ], x: i32, [ self.b ], y: i32, [ self.c ]) -> i32 ;
+//!             // Calls `polynomial` on `inner` with `0`s, passed for arguments
+//!             // `x`, `b`, `y`,  and `c`, effectively executing
+//!             // `a + 0 * 0 + 0 * 0 + 0`
+//!             #[call(polynomial)]
+//!             #[append_args(0, 0, 0, 0)]
+//!             pub fn constant(&self, a: i32) -> i32;
+//!             // Calls `polynomial` on `inner` with `0`s passed for arguments
+//!             // `a` and `x`, and `self.b` and `self.c` for `b` and `c`,
+//!             // effectively executing `0 + 0 * 0 + self.b * y + self.c`.
+//!             #[call(polynomial)]
+//!             pub fn linear(&self, [ 0 ], [ 0 ], [ self.b ], y: i32, [ self.c ]) -> i32 ;
+//!             // Calls `polynomial` on `inner` with `self.a`s passed for `a`,
+//!             // `0`s for `b` and 'y', and `self.c` for `c` effectively executing
+//!             // `self.a + x * x + 0 * 0 + self.c`.
+//!             #[call(polynomial)]
+//!             #[append_args(0, 0, self.c)]
+//!             pub fn univariate_quadratic(&self, [ self.a ], x: i32) -> i32 ;
 //!         }
 //!     }
 //! }
-//! ```
 
 extern crate proc_macro;
 
@@ -121,10 +137,84 @@ mod kw {
     syn::custom_keyword!(target);
 }
 
+#[derive(Clone)]
+enum DelegatedInput {
+    Input(syn::FnArg),
+    Argument(syn::Expr),
+}
+
+impl syn::parse::Parse for DelegatedInput {
+    fn parse(input: syn::parse::ParseStream) -> Result<Self, Error> {
+        let lookahead = input.lookahead1();
+        if lookahead.peek(syn::token::Bracket) {
+            let content;
+            let _bracket_token = syn::bracketed!(content in input);
+            let expression: syn::Expr = content.parse()?;
+            Ok(Self::Argument(expression))
+        } else {
+            let input: syn::FnArg = input.parse()?;
+            Ok(Self::Input(input))
+        }
+    }
+}
+
 struct DelegatedMethod {
     method: syn::TraitItemMethod,
     attributes: Vec<syn::Attribute>,
     visibility: syn::Visibility,
+    arguments: syn::punctuated::Punctuated<syn::Expr, syn::Token![,]>,
+}
+
+// Given an input parameter from a function signature, create a functiona
+// argument used to call the delegate function: omit receiver, extract an
+// identifier from a typed input parameter (and wrap it in an `Expr`).
+fn parse_input_into_argument_expression(
+    function_name: &syn::Ident,
+    input: &syn::FnArg,
+) -> Option<syn::Expr> {
+    match input {
+        // Parse inputs of the form `x: T` to retrieve their identifiers.
+        syn::FnArg::Typed(typed) => {
+            match &*typed.pat {
+                // This should not happen, I think. If it does,
+                // it will be ignored as if it were the
+                // receiver.
+                syn::Pat::Ident(ident) if ident.ident == "self" => None,
+                // Expression in the form`x: T`. Extract the
+                // identifier, wrap it in Expr for type-
+                // compatibility with bracketed expressions and
+                // the `append_args` attribute, and append it
+                // to the argument list.
+                syn::Pat::Ident(ident) => {
+                    let path_segment = syn::PathSegment {
+                        ident: ident.ident.clone(),
+                        arguments: syn::PathArguments::None,
+                    };
+                    let mut segments = syn::punctuated::Punctuated::new();
+                    segments.push(path_segment);
+                    let path = syn::Path {
+                        leading_colon: None,
+                        segments,
+                    };
+                    let ident_as_expr = syn::Expr::from(syn::ExprPath {
+                        attrs: Vec::new(),
+                        qself: None,
+                        path,
+                    });
+                    Some(ident_as_expr)
+                }
+                // Other more complex argument expressions are not covered.
+                _ => panic!(
+                    "You have to use simple identifiers for delegated method parameters ({})",
+                    function_name // The signature is not constructed yet. We make due.
+                ),
+            }
+        }
+        // Skip any `self`/`&self`/`&mut self` argument, since
+        // it does not appear in the argument list and it's
+        // already added to the parameter list.
+        syn::FnArg::Receiver(_receiver) => None,
+    }
 }
 
 impl syn::parse::Parse for DelegatedMethod {
@@ -132,10 +222,138 @@ impl syn::parse::Parse for DelegatedMethod {
         let attributes = input.call(syn::Attribute::parse_outer)?;
         let visibility = input.call(syn::Visibility::parse)?;
 
+        // Unchanged from Parse from TraitItemMethod
+        let constness: Option<syn::Token![const]> = input.parse()?;
+        let asyncness: Option<syn::Token![async]> = input.parse()?;
+        let unsafety: Option<syn::Token![unsafe]> = input.parse()?;
+        let abi: Option<syn::Abi> = input.parse()?;
+        let fn_token: syn::Token![fn] = input.parse()?;
+        let ident: syn::Ident = input.parse()?;
+        let generics: syn::Generics = input.parse()?;
+
+        let content;
+        let paren_token = syn::parenthesized!(content in input);
+
+        // Parse inputs (method parameters) and arguments. The parameters
+        // constitute a the parameter list of the signature of the delegating
+        // method so it must include all inputs, except bracketed expressions.
+        // The argument list constitutes the list of arguments used to call the
+        // delegated function. It must include all inputs, excluding the
+        // receiver (self-type) input. The arguments must all be parsed to
+        // retrieve the expressions inside of the brackets as well as variable
+        // identifiers of ordinary inputs. The arguments must preserve the order
+        // of the inputs.
+        let delegated_inputs =
+            content.parse_terminated::<DelegatedInput, syn::Token![,]>(DelegatedInput::parse)?;
+        let mut inputs: syn::punctuated::Punctuated<syn::FnArg, syn::Token![,]> =
+            syn::punctuated::Punctuated::new();
+        let mut arguments: syn::punctuated::Punctuated<syn::Expr, syn::Token![,]> =
+            syn::punctuated::Punctuated::new();
+
+        // First, combine the cases for pairs with cases for end, to remove
+        // redundancy below.
+        delegated_inputs
+            .into_pairs()
+            .map(|punctuated_pair| match punctuated_pair {
+                syn::punctuated::Pair::Punctuated(item, comma) => (item, Some(comma)),
+                syn::punctuated::Pair::End(item) => (item, None),
+            })
+            .for_each(|pair| match pair {
+                // This input is a bracketed argument (eg. `[ self.x ]`). It
+                // is omitted in the signature of the delegator, but the
+                // expression inside the brackets is used in the body of the
+                // delegator, as an arugnment to the delegated function (eg.
+                // `self.x`). The argument needs to be generated in the
+                // appropriate position with respect other arguments and non-
+                // argument inputs. As long as inputs are added to the
+                // `arguments` vector in order of occurance, this is trivial.
+                (DelegatedInput::Argument(argument), maybe_comma) => {
+                    arguments.push_value(argument);
+                    if let Some(comma) = maybe_comma {
+                        arguments.push_punct(comma)
+                    }
+                }
+                // The input is a standard function parameter with a name and
+                // a type (eg. `x: T`). This input needs to be reflected in
+                // the delegator signature as is (eg. `x: T`). The identifier
+                // also needs to be included in the argument list in part
+                // (eg. `x`). The argument list needs to preserve the order of
+                // the inputs with relation to arguments (see above), so the
+                // parsing is best done here (previously it was done at
+                // generation).
+                (DelegatedInput::Input(input), maybe_comma) => {
+                    inputs.push_value(input.clone());
+                    if let Some(comma) = maybe_comma {
+                        inputs.push_punct(comma);
+                    }
+                    let maybe_argument = parse_input_into_argument_expression(&ident, &input);
+                    if let Some(argument) = maybe_argument {
+                        arguments.push(argument);
+                        if let Some(comma) = maybe_comma {
+                            arguments.push_punct(comma);
+                        }
+                    }
+                }
+            });
+
+        // Unchanged from Parse from TraitItemMethod
+        let output: syn::ReturnType = input.parse()?;
+        let where_clause: Option<syn::WhereClause> = input.parse()?;
+
+        // This needs to be generated manually, because inputs need to be
+        // separated into actual inputs that go in the signature (the
+        // parameters) and the additional expressions in square brackets which
+        // go into the arguments vector (artguments of the call on the method
+        // on the inner object).
+        let signature = syn::Signature {
+            constness,
+            asyncness,
+            unsafety,
+            abi,
+            fn_token,
+            ident,
+            paren_token,
+            inputs,
+            output,
+            variadic: None,
+            generics: syn::Generics {
+                where_clause,
+                ..generics
+            },
+        };
+
+        // Check if the input contains a semicolon or a brace. If it contains
+        // a semicolon, we parse it (to retain token location information) and
+        // continue. However, if it contains a brace, this indicates that
+        // there is a default definition of the method. This is not supported,
+        // so in that case we error out.
+        let lookahead = input.lookahead1();
+        let semi_token: Option<syn::Token![;]>;
+        if lookahead.peek(syn::Token![;]) {
+            semi_token = Some(input.parse()?);
+        } else {
+            panic!(
+                "Do not include implementation of delegated functions ({})",
+                signature.ident
+            );
+        }
+
+        // This needs to be populated from scratch because of the signature above.
+        let method = syn::TraitItemMethod {
+            // All attributes are attached to `DelegatedMethod`, since they
+            // presumably pertain to the process of delegation, not the
+            // signature of the delegator.
+            attrs: Vec::new(),
+            sig: signature,
+            default: None,
+            semi_token,
+        };
+
         Ok(DelegatedMethod {
-            method: input.parse()?,
+            method,
             attributes,
             visibility,
+            arguments,
         })
     }
 }
@@ -321,7 +539,6 @@ pub fn delegate(tokens: TokenStream) -> TokenStream {
         let functions = delegator.methods.iter().map(|method| {
             let input = &method.method;
             let signature = &input.sig;
-            let inputs = &input.sig.inputs;
 
             let (attrs, name, into, append_args) = parse_attributes(&method.attributes, input);
 
@@ -331,40 +548,15 @@ pub fn delegate(tokens: TokenStream) -> TokenStream {
                     signature.ident
                 );
             }
-            let mut args: Vec<syn::Expr> = inputs
-                .iter()
-                .filter_map(|i| match i {
-                    syn::FnArg::Typed(typed) => match &*typed.pat {
-                        syn::Pat::Ident(ident) => {
-                            if ident.ident == "self" {
-                                None
-                            } else {
-                                Some(ident.ident.clone())
-                            }
-                        }
-                        _ => panic!(
-                            "You have to use simple identifiers for delegated method parameters ({})",
-                            input.sig.ident
-                        ),
-                    },
-                    _ => None,
-                })
-                .map(|ident| {
-                    // Wrap Idents in Exprs to unify the argument list with extra args.
-                    let path_segment = syn::PathSegment { ident, arguments: syn::PathArguments::None };
-                    let mut segments = syn::punctuated::Punctuated::new();
-                    segments.push(path_segment);
-                    let path = syn::Path { leading_colon: None, segments };
-                    syn::Expr::from(syn::ExprPath { attrs: Vec::new(), qself: None, path })
-                })
-                .collect();
 
+            // Generate an argument vector from Punctuated list.
+            let mut args: Vec<syn::Expr> = method.arguments.clone().into_iter().collect();
             // Append list of extra args at the end of the list of args generated from the signature.
             args.extend(append_args);
 
             let name = match &name {
                 Some(n) => n,
-                None => &input.sig.ident
+                None => &input.sig.ident,
             };
             let inline = if has_inline_attribute(&attrs) {
                 quote!()
@@ -380,20 +572,21 @@ pub fn delegate(tokens: TokenStream) -> TokenStream {
                 syn::ReturnType::Type(_, ret_type) => {
                     if into {
                         quote::quote! { std::convert::Into::<#ret_type>::into(#body) }
-                    }
-                    else {
+                    } else {
                         body
                     }
                 }
             };
 
-            quote::quote_spanned! {span=>
+            let x = quote::quote_spanned! {span=>
                 #(#attrs)*
                 #inline
                 #visibility #signature {
                     #body
                 }
-            }
+            };
+
+            x
         });
 
         quote! { #(#functions)* }
