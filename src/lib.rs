@@ -121,6 +121,42 @@ mod kw {
     syn::custom_keyword!(target);
 }
 
+#[derive(Clone)]
+enum DelegatedInput {
+    Input(syn::FnArg),
+    Argument(syn::Expr),
+}
+
+impl DelegatedInput {
+    pub fn extract_argument(input: DelegatedInput) -> Option<syn::Expr> {
+        match input {
+            Self::Argument(arg) => Some(arg),
+            _ => None
+        }
+    }
+    pub fn extract_input(input: DelegatedInput) -> Option<syn::FnArg>{
+        match input {
+            Self::Input(input) => Some(input),
+            _ => None
+        }
+    }
+}
+
+impl syn::parse::Parse for DelegatedInput {
+    fn parse(input: syn::parse::ParseStream) -> Result<Self, Error> {
+        let lookahead = input.lookahead1();
+        if lookahead.peek(syn::token::Bracket) {
+            let content;
+            let _bracket_token = syn::bracketed!(content in input);
+            let expression: syn::Expr = content.parse()?;
+            Ok(Self::Argument(expression))
+        }  else {
+            let input: syn::FnArg = input.parse()?;
+            Ok(Self::Input(input))
+        }
+    }
+}
+
 struct DelegatedMethod {
     method: syn::TraitItemMethod,
     attributes: Vec<syn::Attribute>,
@@ -132,7 +168,6 @@ impl syn::parse::Parse for DelegatedMethod {
     fn parse(input: ParseStream) -> Result<Self, Error> {
         let attributes = input.call(syn::Attribute::parse_outer)?;
         let visibility = input.call(syn::Visibility::parse)?;
-        let mut arguments = Vec::new();
 
         // Unchanged from Parse from TraitItemMethod
         let constness: Option<syn::Token![const]> = input.parse()?;
@@ -147,8 +182,48 @@ impl syn::parse::Parse for DelegatedMethod {
         let paren_token = syn::parenthesized!(content in input);
 
         // Parse inputs (method parameters) and arguments.
-        let inputs = todo!();
-            //content.parse_terminated(FnArg::parse)?;
+        let delegated_inputs = content.parse_terminated::<DelegatedInput, syn::Token![,]>(DelegatedInput::parse)?;
+        let mut inputs: syn::punctuated::Punctuated<syn::FnArg, syn::Token![,]> = syn::punctuated::Punctuated::new();
+        let mut arguments: syn::punctuated::Punctuated<syn::Expr, syn::Token![,]> = syn::punctuated::Punctuated::new();
+        for pair in delegated_inputs.into_pairs() {
+            match pair {
+                syn::punctuated::Pair::Punctuated(DelegatedInput::Input(input), comma) => { 
+                    inputs.push_value(input);
+                    inputs.push_punct(comma);
+                }
+                syn::punctuated::Pair::End(DelegatedInput::Input(input)) => {
+                    inputs.push(input);
+                }
+                _ => todo!()
+            }
+        }
+        // let inputs = delegated_inputs.pairs().flat_map(|pair| {
+        //     DelegatedInput::extract_input(pair).map(|input| (input, punctuation))
+        // }).collect();
+        //let mut arguments = delegated_inputs.iter().flat_map(|e| DelegatedInput::extract_argument(e.clone())).collect();
+        
+
+        //delegated_inputs.into_iter().split(|delegated_input| delegated_input.is_argument());
+        
+
+        // loop {
+        //     if input.is_empty() {
+        //         break;
+        //     }
+        //     let lookahead = input.lookahead1();
+        //     if lookahead.peek(syn::token::Bracket)  {
+
+        //     }  else {
+
+        //     }
+        //     if input.is_empty() {
+        //         break;
+        //     }
+        //     let punct = input.parse()?;
+        //     punctuated.push_punct(punct);
+        // }
+
+            
         
         // Unchanged from Parse from TraitItemMethod
         let output: syn::ReturnType = input.parse()?;
@@ -216,7 +291,7 @@ impl syn::parse::Parse for DelegatedMethod {
             method,
             attributes,
             visibility,
-            arguments,
+            arguments: todo!(),
         })
     }
 }
