@@ -134,23 +134,46 @@ impl syn::parse::Parse for DelegatedMethod {
         let visibility = input.call(syn::Visibility::parse)?;
         let mut arguments = Vec::new();
 
+        // Unchanged from Parse from TraitItemMethod
+        let constness: Option<syn::Token![const]> = input.parse()?;
+        let asyncness: Option<syn::Token![async]> = input.parse()?;
+        let unsafety: Option<syn::Token![unsafe]> = input.parse()?;
+        let abi: Option<syn::Abi> = input.parse()?;
+        let fn_token: syn::Token![fn] = input.parse()?;
+        let ident: syn::Ident = input.parse()?;
+        let generics: syn::Generics = input.parse()?;
+        
+        let content;
+        let paren_token = syn::parenthesized!(content in input);
+
+        // Parse inputs (method parameters) and arguments.
+        let inputs = todo!();
+            //content.parse_terminated(FnArg::parse)?;
+        
+        // Unchanged from Parse from TraitItemMethod
+        let output: syn::ReturnType = input.parse()?;
+        let where_clause: Option<syn::WhereClause> = input.parse()?;
+
         // This needs to be generated manually, because inputs need to be
         // separated into actual inputs that go in the signature (the 
         // parameters) and the additional expressions in square brackets which
         // go into the arguments vector (artguments of the call on the method
         // on the inner object).
         let signature = syn::Signature {
-            constness: todo!(),   // Option<Const>,
-            asyncness: todo!(),   // Option<Async>,
-            unsafety: todo!(),    // Option<Unsafe>,
-            abi: todo!(),         // Option<Abi>,
-            fn_token: todo!(),    // Fn,
-            ident: todo!(),       // Ident,
-            generics: todo!(),    // Generics,
-            paren_token: todo!(), // Paren,
+            constness,
+            asyncness,
+            unsafety,
+            abi,    
+            fn_token,
+            ident, 
+            paren_token,
             inputs: todo!(),      // Punctuated<FnArg, Comma>,
-            variadic: todo!(),    // Option<Variadic>,
-            output: todo!(),      // ReturnType,
+            output,   
+            variadic: None,
+            generics: syn:: Generics {
+                where_clause,
+                ..generics
+            },    // Generics,
         };
 
         // Check if the input contains a semicolon or a brace. If it contains
