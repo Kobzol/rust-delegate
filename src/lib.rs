@@ -125,17 +125,75 @@ struct DelegatedMethod {
     method: syn::TraitItemMethod,
     attributes: Vec<syn::Attribute>,
     visibility: syn::Visibility,
+    arguments: Vec<syn::Expr>,
 }
 
 impl syn::parse::Parse for DelegatedMethod {
     fn parse(input: ParseStream) -> Result<Self, Error> {
         let attributes = input.call(syn::Attribute::parse_outer)?;
         let visibility = input.call(syn::Visibility::parse)?;
+        let mut arguments = Vec::new();
+
+        // This needs to be generated manually, because inputs need to be
+        // separated into actual inputs that go in the signature (the 
+        // parameters) and the additional expressions in square brackets which
+        // go into the arguments vector (artguments of the call on the method
+        // on the inner object).
+        let signature = syn::Signature {
+            constness: todo!(),   // Option<Const>,
+            asyncness: todo!(),   // Option<Async>,
+            unsafety: todo!(),    // Option<Unsafe>,
+            abi: todo!(),         // Option<Abi>,
+            fn_token: todo!(),    // Fn,
+            ident: todo!(),       // Ident,
+            generics: todo!(),    // Generics,
+            paren_token: todo!(), // Paren,
+            inputs: todo!(),      // Punctuated<FnArg, Comma>,
+            variadic: todo!(),    // Option<Variadic>,
+            output: todo!(),      // ReturnType,
+        };
+
+        // Check if the input contains a semicolon or a brace. If it contains
+        // a semicolon, we parse it (to retain token location information) and 
+        // continue. However, if it contains a brace, this indicates that 
+        // there is a default definition of the method. This is not supported,
+        // so in that case we error out. 
+        let lookahead = input.lookahead1();
+        let mut semi_token: Option<syn::Token![;]>;
+        if lookahead.peek(syn::Token![;]) {
+            semi_token = Some(input.parse()?);
+        } else {
+            panic!("Do not include implementation of delegated functions ({})",
+                    signature.ident);
+        }
+        
+        // This needs to be populated from scratch because of the signature above.
+        let method = syn::TraitItemMethod {
+            // Question: In the original these attributes would be re-parsed, 
+            // but since they are already consumed above,there should not be 
+            // a need to re-parse them here---it will always yield an empty 
+            // vector. I suspect the reason for that was to parse the visibility 
+            // which is not part of `TraitItemMethod`, but which is after 
+            // attributes. 
+            // Should the new solution:
+            //   (a) parse and stick the resulting (empty) vector into the 
+            //       struct,
+            //   (b) just stick an empty vector in without attempting to 
+            //       parse, or
+            //   (c) stick the already-parsed attribute vector?
+            // If (c) then should the outer `attributes` vector be removed
+            // from the struct altogether?
+            attrs: attributes, // Vec<Attribute>,
+            sig: signature,    // Signature,
+            default: None,     // Option<Block>,
+            semi_token,        // Option<Token![;]>,
+        };
 
         Ok(DelegatedMethod {
-            method: input.parse()?,
+            method,
             attributes,
             visibility,
+            arguments,
         })
     }
 }
