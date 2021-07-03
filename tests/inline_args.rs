@@ -5,7 +5,7 @@ use delegate::delegate;
 // TODO test more signature alternatives (generics, etc.)
 
 #[test]
-fn test_append_args() {
+fn test_inline_args() {
     struct Inner;
 
     impl Inner {
@@ -54,6 +54,6 @@ fn test_append_args() {
     assert_eq!(Outer::new().fun1_with_0(), 0);
     assert_eq!(Outer::new().fun1_with_0_no_spaces(), 0);
     assert_eq!(Outer::new().fun1_with_def(), 42);
-    assert_eq!(Outer::new().fun2(2), 3);
+    assert_eq!(Outer::new().fun2(2), 2);
     assert_eq!(Outer::new().fun3(3), 6);
 }
