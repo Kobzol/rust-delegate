@@ -127,20 +127,20 @@ enum DelegatedInput {
     Argument(syn::Expr),
 }
 
-impl DelegatedInput {
-    pub fn extract_argument(input: DelegatedInput) -> Option<syn::Expr> {
-        match input {
-            Self::Argument(arg) => Some(arg),
-            _ => None
-        }
-    }
-    pub fn extract_input(input: DelegatedInput) -> Option<syn::FnArg>{
-        match input {
-            Self::Input(input) => Some(input),
-            _ => None
-        }
-    }
-}
+// impl DelegatedInput {
+//     pub fn extract_argument(input: DelegatedInput) -> Option<syn::Expr> {
+//         match input {
+//             Self::Argument(arg) => Some(arg),
+//             _ => None
+//         }
+//     }
+//     pub fn extract_input(input: DelegatedInput) -> Option<syn::FnArg>{
+//         match input {
+//             Self::Input(input) => Some(input),
+//             _ => None
+//         }
+//     }
+// }
 
 impl syn::parse::Parse for DelegatedInput {
     fn parse(input: syn::parse::ParseStream) -> Result<Self, Error> {
@@ -161,7 +161,7 @@ struct DelegatedMethod {
     method: syn::TraitItemMethod,
     attributes: Vec<syn::Attribute>,
     visibility: syn::Visibility,
-    arguments: Vec<syn::Expr>,
+    arguments: syn::punctuated::Punctuated<syn::Expr, syn::Token![,]>,
 }
 
 impl syn::parse::Parse for DelegatedMethod {
@@ -194,36 +194,15 @@ impl syn::parse::Parse for DelegatedMethod {
                 syn::punctuated::Pair::End(DelegatedInput::Input(input)) => {
                     inputs.push(input);
                 }
-                _ => todo!()
+                syn::punctuated::Pair::Punctuated(DelegatedInput::Argument(argument), comma) => { 
+                    arguments.push_value(argument);
+                    arguments.push_punct(comma);
+                }
+                syn::punctuated::Pair::End(DelegatedInput::Argument(argument)) => {
+                    arguments.push(argument);
+                }
             }
         }
-        // let inputs = delegated_inputs.pairs().flat_map(|pair| {
-        //     DelegatedInput::extract_input(pair).map(|input| (input, punctuation))
-        // }).collect();
-        //let mut arguments = delegated_inputs.iter().flat_map(|e| DelegatedInput::extract_argument(e.clone())).collect();
-        
-
-        //delegated_inputs.into_iter().split(|delegated_input| delegated_input.is_argument());
-        
-
-        // loop {
-        //     if input.is_empty() {
-        //         break;
-        //     }
-        //     let lookahead = input.lookahead1();
-        //     if lookahead.peek(syn::token::Bracket)  {
-
-        //     }  else {
-
-        //     }
-        //     if input.is_empty() {
-        //         break;
-        //     }
-        //     let punct = input.parse()?;
-        //     punctuated.push_punct(punct);
-        // }
-
-            
         
         // Unchanged from Parse from TraitItemMethod
         let output: syn::ReturnType = input.parse()?;
@@ -242,13 +221,13 @@ impl syn::parse::Parse for DelegatedMethod {
             fn_token,
             ident, 
             paren_token,
-            inputs: todo!(),      // Punctuated<FnArg, Comma>,
+            inputs,
             output,   
             variadic: None,
             generics: syn:: Generics {
                 where_clause,
                 ..generics
-            },    // Generics,
+            },
         };
 
         // Check if the input contains a semicolon or a brace. If it contains
@@ -257,7 +236,7 @@ impl syn::parse::Parse for DelegatedMethod {
         // there is a default definition of the method. This is not supported,
         // so in that case we error out. 
         let lookahead = input.lookahead1();
-        let mut semi_token: Option<syn::Token![;]>;
+        let semi_token: Option<syn::Token![;]>;
         if lookahead.peek(syn::Token![;]) {
             semi_token = Some(input.parse()?);
         } else {
@@ -281,7 +260,7 @@ impl syn::parse::Parse for DelegatedMethod {
             //   (c) stick the already-parsed attribute vector?
             // If (c) then should the outer `attributes` vector be removed
             // from the struct altogether?
-            attrs: attributes, // Vec<Attribute>,
+            attrs: attributes.clone(), // Vec<Attribute>,
             sig: signature,    // Signature,
             default: None,     // Option<Block>,
             semi_token,        // Option<Token![;]>,
@@ -291,7 +270,7 @@ impl syn::parse::Parse for DelegatedMethod {
             method,
             attributes,
             visibility,
-            arguments: todo!(),
+            arguments,
         })
     }
 }
