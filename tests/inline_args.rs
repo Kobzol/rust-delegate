@@ -2,6 +2,8 @@ extern crate delegate;
 
 use delegate::delegate;
 
+// TODO test more signature alternatives (generics, etc.)
+
 #[test]
 fn test_append_args() {
     struct Inner;
