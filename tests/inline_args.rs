@@ -55,5 +55,5 @@ fn test_inline_args() {
     assert_eq!(Outer::new().fun1_with_0_no_spaces(), 0);
     assert_eq!(Outer::new().fun1_with_def(), 42);
     assert_eq!(Outer::new().fun2(2), 2);
-    assert_eq!(Outer::new().fun3(3), 6);
+    assert_eq!(Outer::new().fun3(3), 7);
 }
