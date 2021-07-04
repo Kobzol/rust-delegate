@@ -2,13 +2,14 @@ extern crate delegate;
 
 use delegate::delegate;
 
-// TODO test more signature alternatives (generics, etc.)
-
 #[test]
 fn test_inline_args() {
     struct Inner;
 
     impl Inner {
+        fn fun_generic<S: Copy>(self, s: S) -> S {
+            s
+        }
         fn fun0(self) -> u32 {
             42
         }
@@ -38,6 +39,8 @@ fn test_inline_args() {
 
         delegate! {
             to self.inner {
+                #[call(fun_generic)]
+                fn fun_generic(self, [ 42 ]) -> u32;
                 #[call(fun1)]
                 fn fun1_with_0(self, [ 0 ]) -> u32;
                 #[call(fun1)]
@@ -51,6 +54,7 @@ fn test_inline_args() {
         }
     }
 
+    assert_eq!(Outer::new().fun_generic(), 42);
     assert_eq!(Outer::new().fun1_with_0(), 0);
     assert_eq!(Outer::new().fun1_with_0_no_spaces(), 0);
     assert_eq!(Outer::new().fun1_with_def(), 42);
