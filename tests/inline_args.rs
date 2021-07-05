@@ -67,17 +67,22 @@ fn test_mixed_args() {
     use delegate::delegate;
     struct Inner;
     impl Inner {
-        pub fn polynomial(&self, a: i32, x: i32, b: i32, y: i32, c: i32) -> i32 { 
-            a + x * x + b * y + c 
+        pub fn polynomial(&self, a: i32, x: i32, b: i32, y: i32, c: i32) -> i32 {
+            a + x * x + b * y + c
         }
     }
-    struct Wrapper { inner: Inner, a: i32, b: i32, c: i32 }
+    struct Wrapper {
+        inner: Inner,
+        a: i32,
+        b: i32,
+        c: i32,
+    }
     impl Wrapper {
         delegate! {
             to self.inner {
                 pub fn polynomial(&self, [ self.a ], x: i32, [ self.b ], y: i32, [ self.c ]) -> i32 ;
 
-                #[call(polynomial)] 
+                #[call(polynomial)]
                 #[append_args(0, 0, 0, 0)]
                 pub fn constant(&self, a: i32) -> i32;
 
@@ -86,7 +91,7 @@ fn test_mixed_args() {
 
                 #[call(polynomial)]
                 #[append_args(0, 0, self.c)]
-                pub fn univariate_quadratic(&self, [ self.a ], x: i32) -> i32 ; 
+                pub fn univariate_quadratic(&self, [ self.a ], x: i32) -> i32 ;
             }
         }
 

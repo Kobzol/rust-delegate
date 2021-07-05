@@ -88,35 +88,35 @@
 //! use delegate::delegate;
 //! struct Inner;
 //! impl Inner {
-//!     pub fn polynomial(&self, a: i32, x: i32, b: i32, y: i32, c: i32) -> i32 { 
-//!         a + x * x + b * y + c 
+//!     pub fn polynomial(&self, a: i32, x: i32, b: i32, y: i32, c: i32) -> i32 {
+//!         a + x * x + b * y + c
 //!     }
 //! }
 //! struct Wrapper { inner: Inner, a: i32, b: i32, c: i32 }
 //! impl Wrapper {
 //!     delegate! {
 //!         to self.inner {
-//!             // Calls `polynomial` on `inner` with `self.a`, `self.b` and 
-//!             // `self.c` passed as arguments `a`, `b`, and `c`, effectively 
-//!             // executing `self.a + x * x + self.b * y + self.c` 
+//!             // Calls `polynomial` on `inner` with `self.a`, `self.b` and
+//!             // `self.c` passed as arguments `a`, `b`, and `c`, effectively
+//!             // executing `self.a + x * x + self.b * y + self.c`
 //!             pub fn polynomial(&self, [ self.a ], x: i32, [ self.b ], y: i32, [ self.c ]) -> i32 ;
 //!             // Calls `polynomial` on `inner` with `0`s, passed for arguments
-//!             // `x`, `b`, `y`,  and `c`, effectively executing 
-//!             // `a + 0 * 0 + 0 * 0 + 0` 
-//!             #[call(polynomial)] 
+//!             // `x`, `b`, `y`,  and `c`, effectively executing
+//!             // `a + 0 * 0 + 0 * 0 + 0`
+//!             #[call(polynomial)]
 //!             #[append_args(0, 0, 0, 0)]
 //!             pub fn constant(&self, a: i32) -> i32;
-//!             // Calls `polynomial` on `inner` with `0`s passed for arguments 
-//!             // `a` and `x`, and `self.b` and `self.c` for `b` and `c`, 
+//!             // Calls `polynomial` on `inner` with `0`s passed for arguments
+//!             // `a` and `x`, and `self.b` and `self.c` for `b` and `c`,
 //!             // effectively executing `0 + 0 * 0 + self.b * y + self.c`.
 //!             #[call(polynomial)]
 //!             pub fn linear(&self, [ 0 ], [ 0 ], [ self.b ], y: i32, [ self.c ]) -> i32 ;
-//!             // Calls `polynomial` on `inner` with `self.a`s passed for `a`, 
+//!             // Calls `polynomial` on `inner` with `self.a`s passed for `a`,
 //!             // `0`s for `b` and 'y', and `self.c` for `c` effectively executing
 //!             // `self.a + x * x + 0 * 0 + self.c`.
 //!             #[call(polynomial)]
 //!             #[append_args(0, 0, self.c)]
-//!             pub fn univariate_quadratic(&self, [ self.a ], x: i32) -> i32 ; 
+//!             pub fn univariate_quadratic(&self, [ self.a ], x: i32) -> i32 ;
 //!         }
 //!     }
 //! }
@@ -132,8 +132,6 @@ use syn::parse::ParseStream;
 use syn::spanned::Spanned;
 use syn::Error;
 
-use quote::ToTokens;
-
 mod kw {
     syn::custom_keyword!(to);
     syn::custom_keyword!(target);
@@ -144,21 +142,6 @@ enum DelegatedInput {
     Input(syn::FnArg),
     Argument(syn::Expr),
 }
-
-// impl DelegatedInput {
-//     pub fn extract_argument(input: DelegatedInput) -> Option<syn::Expr> {
-//         match input {
-//             Self::Argument(arg) => Some(arg),
-//             _ => None
-//         }
-//     }
-//     pub fn extract_input(input: DelegatedInput) -> Option<syn::FnArg>{
-//         match input {
-//             Self::Input(input) => Some(input),
-//             _ => None
-//         }
-//     }
-// }
 
 impl syn::parse::Parse for DelegatedInput {
     fn parse(input: syn::parse::ParseStream) -> Result<Self, Error> {
@@ -357,21 +340,10 @@ impl syn::parse::Parse for DelegatedMethod {
 
         // This needs to be populated from scratch because of the signature above.
         let method = syn::TraitItemMethod {
-            // Question: In the original these attributes would be re-parsed,
-            // but since they are already consumed above,there should not be
-            // a need to re-parse them here---it will always yield an empty
-            // vector. I suspect the reason for that was to parse the visibility
-            // which is not part of `TraitItemMethod`, but which is after
-            // attributes.
-            // Should the new solution:
-            //   (a) parse and stick the resulting (empty) vector into the
-            //       struct,
-            //   (b) just stick an empty vector in without attempting to
-            //       parse, or
-            //   (c) stick the already-parsed attribute vector?
-            // If (c) then should the outer `attributes` vector be removed
-            // from the struct altogether?
-            attrs: attributes.clone(),
+            // All attributes are attached to `DelegatedMethod`, since they
+            // presumably pertain to the process of delegation, not the
+            // signature of the delegator.
+            attrs: Vec::new(),
             sig: signature,
             default: None,
             semi_token,
