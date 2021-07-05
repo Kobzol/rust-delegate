@@ -61,3 +61,47 @@ fn test_inline_args() {
     assert_eq!(Outer::new().fun2(2), 2);
     assert_eq!(Outer::new().fun3(3), 7);
 }
+
+#[test]
+fn test_mixed_args() {
+    use delegate::delegate;
+    struct Inner;
+    impl Inner {
+        pub fn polynomial(&self, a: i32, x: i32, b: i32, y: i32, c: i32) -> i32 { 
+            a + x * x + b * y + c 
+        }
+    }
+    struct Wrapper { inner: Inner, a: i32, b: i32, c: i32 }
+    impl Wrapper {
+        delegate! {
+            to self.inner {
+                pub fn polynomial(&self, [ self.a ], x: i32, [ self.b ], y: i32, [ self.c ]) -> i32 ;
+
+                #[call(polynomial)] 
+                #[append_args(0, 0, 0, 0)]
+                pub fn constant(&self, a: i32) -> i32;
+
+                #[call(polynomial)]
+                pub fn linear(&self, [ 0 ], [ 0 ], [ self.b ], y: i32, [ self.c ]) -> i32 ;
+
+                #[call(polynomial)]
+                #[append_args(0, 0, self.c)]
+                pub fn univariate_quadratic(&self, [ self.a ], x: i32) -> i32 ; 
+            }
+        }
+
+        pub fn new() -> Wrapper {
+            Wrapper {
+                inner: Inner,
+                a: 1,
+                b: 3,
+                c: 5,
+            }
+        }
+    }
+
+    assert_eq!(Wrapper::new().polynomial(2, 3), 19i32);
+    assert_eq!(Wrapper::new().constant(7), 7i32);
+    assert_eq!(Wrapper::new().linear(3), 14i32);
+    assert_eq!(Wrapper::new().univariate_quadratic(2), 10i32);
+}
