@@ -235,7 +235,7 @@ impl syn::parse::Parse for DelegatedMethod {
         let paren_token = syn::parenthesized!(content in input);
 
         // Parse inputs (method parameters) and arguments. The parameters
-        // constitute a the parameter list of the signature of the delegating
+        // constitute the parameter list of the signature of the delegating
         // method so it must include all inputs, except bracketed expressions.
         // The argument list constitutes the list of arguments used to call the
         // delegated function. It must include all inputs, excluding the
@@ -578,15 +578,13 @@ pub fn delegate(tokens: TokenStream) -> TokenStream {
                 }
             };
 
-            let x = quote::quote_spanned! {span=>
+            quote::quote_spanned! {span=>
                 #(#attrs)*
                 #inline
                 #visibility #signature {
                     #body
                 }
-            };
-
-            x
+            }
         });
 
         quote! { #(#functions)* }
