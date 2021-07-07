@@ -48,8 +48,6 @@ fn test_inline_args() {
                 #[call(fun1)]
                 fn fun1_with_def(self, [ self.value ] ) -> u32;
                 fn fun2(self, [ 0 ], b: u32) -> u32;
-                #[append_args(2)]
-                fn fun3(self, a: u32, [ 2 ]) -> u32;
             }
         }
     }
@@ -59,7 +57,6 @@ fn test_inline_args() {
     assert_eq!(Outer::new().fun1_with_0_no_spaces(), 0);
     assert_eq!(Outer::new().fun1_with_def(), 42);
     assert_eq!(Outer::new().fun2(2), 2);
-    assert_eq!(Outer::new().fun3(3), 7);
 }
 
 #[test]
@@ -83,15 +80,7 @@ fn test_mixed_args() {
                 pub fn polynomial(&self, [ self.a ], x: i32, [ self.b ], y: i32, [ self.c ]) -> i32 ;
 
                 #[call(polynomial)]
-                #[append_args(0, 0, 0, 0)]
-                pub fn constant(&self, a: i32) -> i32;
-
-                #[call(polynomial)]
                 pub fn linear(&self, [ 0 ], [ 0 ], [ self.b ], y: i32, [ self.c ]) -> i32 ;
-
-                #[call(polynomial)]
-                #[append_args(0, 0, self.c)]
-                pub fn univariate_quadratic(&self, [ self.a ], x: i32) -> i32 ;
             }
         }
 
@@ -106,7 +95,5 @@ fn test_mixed_args() {
     }
 
     assert_eq!(Wrapper::new().polynomial(2, 3), 19i32);
-    assert_eq!(Wrapper::new().constant(7), 7i32);
     assert_eq!(Wrapper::new().linear(3), 14i32);
-    assert_eq!(Wrapper::new().univariate_quadratic(2), 10i32);
 }

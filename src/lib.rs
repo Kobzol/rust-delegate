@@ -81,9 +81,8 @@
 //!     }
 //! }
 //! ```
-//! - Delegation of generic methods
 //! - Inserts `#[inline(always)]` automatically (unless you specify `#[inline]` manually on the method)
-//! - Delegate with additional arguments (either inlined or appended to the end of the argument list)
+//! - Specify expressions in the signature that will be used as delegated arguments
 //! ```rust
 //! use delegate::delegate;
 //! struct Inner;
@@ -98,25 +97,13 @@
 //!         to self.inner {
 //!             // Calls `polynomial` on `inner` with `self.a`, `self.b` and
 //!             // `self.c` passed as arguments `a`, `b`, and `c`, effectively
-//!             // executing `self.a + x * x + self.b * y + self.c`
+//!             // calling `polynomial(self.a, x, self.b, y, self.c)`.
 //!             pub fn polynomial(&self, [ self.a ], x: i32, [ self.b ], y: i32, [ self.c ]) -> i32 ;
-//!             // Calls `polynomial` on `inner` with `0`s, passed for arguments
-//!             // `x`, `b`, `y`,  and `c`, effectively executing
-//!             // `a + 0 * 0 + 0 * 0 + 0`
-//!             #[call(polynomial)]
-//!             #[append_args(0, 0, 0, 0)]
-//!             pub fn constant(&self, a: i32) -> i32;
 //!             // Calls `polynomial` on `inner` with `0`s passed for arguments
 //!             // `a` and `x`, and `self.b` and `self.c` for `b` and `c`,
-//!             // effectively executing `0 + 0 * 0 + self.b * y + self.c`.
+//!             // effectively calling `polynomial(0, 0, self.b, y, self.c)`.
 //!             #[call(polynomial)]
 //!             pub fn linear(&self, [ 0 ], [ 0 ], [ self.b ], y: i32, [ self.c ]) -> i32 ;
-//!             // Calls `polynomial` on `inner` with `self.a`s passed for `a`,
-//!             // `0`s for `b` and 'y', and `self.c` for `c` effectively executing
-//!             // `self.a + x * x + 0 * 0 + self.c`.
-//!             #[call(polynomial)]
-//!             #[append_args(0, 0, self.c)]
-//!             pub fn univariate_quadratic(&self, [ self.a ], x: i32) -> i32 ;
 //!         }
 //!     }
 //! }
@@ -182,8 +169,7 @@ fn parse_input_into_argument_expression(
                 syn::Pat::Ident(ident) if ident.ident == "self" => None,
                 // Expression in the form`x: T`. Extract the
                 // identifier, wrap it in Expr for type-
-                // compatibility with bracketed expressions and
-                // the `append_args` attribute, and append it
+                // compatibility with bracketed expressions, and append it
                 // to the argument list.
                 syn::Pat::Ident(ident) => {
                     let path_segment = syn::PathSegment {
@@ -414,24 +400,6 @@ impl syn::parse::Parse for CallMethodAttribute {
     }
 }
 
-struct AppendArgumentsAttribute {
-    expression: Vec<syn::Expr>,
-}
-
-impl syn::parse::Parse for AppendArgumentsAttribute {
-    fn parse(input: ParseStream) -> Result<Self, Error> {
-        let content;
-        syn::parenthesized!(content in input);
-        let punctuated_expressions =
-            syn::punctuated::Punctuated::<syn::Expr, syn::token::Comma>::parse_terminated(
-                &content,
-            )?;
-        Ok(AppendArgumentsAttribute {
-            expression: punctuated_expressions.into_iter().collect(),
-        })
-    }
-}
-
 /// Iterates through the attributes of a method and filters special attributes.
 /// call => sets the name of the target method to call
 /// into => generates a `into()` call for the returned value
@@ -440,15 +408,9 @@ impl syn::parse::Parse for AppendArgumentsAttribute {
 fn parse_attributes<'a>(
     attrs: &'a [syn::Attribute],
     method: &syn::TraitItemMethod,
-) -> (
-    Vec<&'a syn::Attribute>,
-    Option<syn::Ident>,
-    bool,
-    Vec<syn::Expr>,
-) {
+) -> (Vec<&'a syn::Attribute>, Option<syn::Ident>, bool) {
     let mut name: Option<syn::Ident> = None;
     let mut into: Option<bool> = None;
-    let mut append_args: Option<Vec<syn::Expr>> = None;
     let mut map: HashMap<&str, Box<dyn FnMut(TokenStream2)>> = Default::default();
     map.insert(
         "call",
@@ -461,20 +423,6 @@ fn parse_attributes<'a>(
                 )
             }
             name = Some(target.name);
-        }),
-    );
-    map.insert(
-        "append_args",
-        Box::new(|stream| {
-            let target = syn::parse2::<AppendArgumentsAttribute>(stream)
-                .expect("append_args takes a comma-separated list of expressions");
-            if append_args.is_some() {
-                panic!(
-                    "Multiple `append_args` attributes specified for {}",
-                    method.sig.ident
-                )
-            }
-            append_args = Some(target.expression);
         }),
     );
     map.insert(
@@ -512,12 +460,7 @@ fn parse_attributes<'a>(
         .collect();
 
     drop(map);
-    (
-        attrs,
-        name,
-        into.unwrap_or(false),
-        append_args.unwrap_or_else(Vec::new),
-    )
+    (attrs, name, into.unwrap_or(false))
 }
 
 /// Returns true if there are any `inline` attributes in the input.
@@ -540,7 +483,7 @@ pub fn delegate(tokens: TokenStream) -> TokenStream {
             let input = &method.method;
             let signature = &input.sig;
 
-            let (attrs, name, into, append_args) = parse_attributes(&method.attributes, input);
+            let (attrs, name, into) = parse_attributes(&method.attributes, input);
 
             if input.default.is_some() {
                 panic!(
@@ -550,9 +493,7 @@ pub fn delegate(tokens: TokenStream) -> TokenStream {
             }
 
             // Generate an argument vector from Punctuated list.
-            let mut args: Vec<syn::Expr> = method.arguments.clone().into_iter().collect();
-            // Append list of extra args at the end of the list of args generated from the signature.
-            args.extend(append_args);
+            let args: Vec<syn::Expr> = method.arguments.clone().into_iter().collect();
 
             let name = match &name {
                 Some(n) => n,

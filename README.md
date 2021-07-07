@@ -107,9 +107,8 @@ impl MultiStack {
     }
 }
 ```
-- Delegation of generic methods
 - Inserts `#[inline(always)]` automatically (unless you specify `#[inline]` manually on the method)
-- Delegate with additional arguments (either inlined or appended to the end of the argument list)
+- Specify expressions in the signature that will be used as delegated arguments
 ```rust
 use delegate::delegate;
 struct Inner;
@@ -124,25 +123,13 @@ impl Wrapper {
         to self.inner {
             // Calls `polynomial` on `inner` with `self.a`, `self.b` and 
             // `self.c` passed as arguments `a`, `b`, and `c`, effectively 
-            // executing `self.a + x * x + self.b * y + self.c` 
+            // calling `polynomial(self.a, x, self.b, y, self.c)`. 
             pub fn polynomial(&self, [ self.a ], x: i32, [ self.b ], y: i32, [ self.c ]) -> i32 ;
-            // Calls `polynomial` on `inner` with `0`s, passed for arguments
-            // `x`, `b`, `y`,  and `c`, effectively executing 
-            // `a + 0 * 0 + 0 * 0 + 0` 
-            #[call(polynomial)] 
-            #[append_args(0, 0, 0, 0)]
-            pub fn constant(&self, a: i32) -> i32;
             // Calls `polynomial` on `inner` with `0`s passed for arguments 
             // `a` and `x`, and `self.b` and `self.c` for `b` and `c`, 
-            // effectively executing `0 + 0 * 0 + self.b * y + self.c`.
+            // effectively calling `polynomial(0, 0, self.b, y, self.c)`.
             #[call(polynomial)]
             pub fn linear(&self, [ 0 ], [ 0 ], [ self.b ], y: i32, [ self.c ]) -> i32 ;
-            // Calls `polynomial` on `inner` with `self.a`s passed for `a`, 
-            // `0`s for `b` and 'y', and `self.c` for `c` effectively executing
-            // `self.a + x * x + 0 * 0 + self.c`.
-            #[call(polynomial)]
-            #[append_args(0, 0, self.c)]
-            pub fn univariate_quadratic(&self, [ self.a ], x: i32) -> i32 ; 
         }
     }
 }
