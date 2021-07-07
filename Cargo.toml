@@ -1,9 +1,9 @@
 [package]
 name = "delegate"
 description = "Method delegation with less boilerplate"
-version = "0.5.2"
+version = "0.6.0"
 authors = ["Godfrey Chan <godfreykfc@gmail.com>", "Jakub Beránek <berykubik@gmail.com>"]
-repository = "https://github.com/chancancode/rust-delegate"
+repository = "https://github.com/kobzol/rust-delegate"
 readme = "README.md"
 license = "MIT OR Apache-2.0"
 edition = "2018"
