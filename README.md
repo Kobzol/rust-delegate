@@ -85,6 +85,25 @@ impl Wrapper {
         }
     }
 }
+- Call `await` on async functions
+```rust
+struct Inner;
+impl Inner {
+    pub async fn method(&self, num: u32) -> u32 { num }
+}
+struct Wrapper { inner: Inner }
+impl Wrapper {
+    delegate! {
+        to self.inner {
+            // calls method(num).await, returns impl Future<Output = u32>
+            pub async fn method(&self, num: u32) -> u32;
+            // calls method(num).await.into(), returns impl Future<Output = u64>
+            #[into]
+            #[call(method)]
+            pub async fn method_into(&self, num: u32) -> u64;
+        }
+    }
+}
 ```
 - Delegate to multiple fields
 ```rust
