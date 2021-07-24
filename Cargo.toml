@@ -19,3 +19,7 @@ proc-macro2 = "1"
 
 [lib]
 proc-macro = true
+
+[dev-dependencies]
+async-trait = "0.1.50"
+futures = "0.3.16"
