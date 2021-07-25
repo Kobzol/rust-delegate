@@ -1,4 +1,3 @@
-extern crate delegate;
 use delegate::delegate;
 use std::sync::Mutex;
 

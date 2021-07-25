@@ -1,4 +1,3 @@
-extern crate delegate;
 use delegate::delegate;
 
 #[derive(Clone, Debug)]
