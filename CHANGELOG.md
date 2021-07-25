@@ -1,3 +1,6 @@
+# 0.6.1 (25. 7. 2021)
+- add support for `async` functions. The delegated call will now use `.await`.
+
 # 0.6.0 (7. 7. 2021)
 - add the option to specify inline expressions that will be used as arguments for the delegated call (https://github.com/kobzol/rust-delegate/pull/34)
 - removed `append_args` attribute, which is superseded by the mentioned expression in signature support
