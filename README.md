@@ -85,6 +85,7 @@ impl Wrapper {
         }
     }
 }
+```
 - Call `await` on async functions
 ```rust
 struct Inner;
