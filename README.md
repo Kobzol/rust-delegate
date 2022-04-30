@@ -158,6 +158,33 @@ impl Wrapper {
     }
 }
 ```
+- Modify how will an input parameter be passed to the delegated method with parameter attribute modifiers.
+Currently, the following modifiers are supported:
+    - `#[into]`: Calls `.into()` on the parameter passed to the delegated method.
+```rust
+use delegate::delegate;
+//!
+struct InnerType {}
+impl InnerType {
+    fn foo(&self, other: Self) {}
+}
+//!
+impl From<Wrapper> for InnerType {
+    fn from(wrapper: Wrapper) -> Self {
+        wrapper.0
+    }
+}
+//!
+struct Wrapper(InnerType);
+impl Wrapper {
+    delegate! {
+        to self.0 {
+            // Calls `self.0.foo(other.into());`
+            pub fn foo(&self, #[into] other: Self);
+        }
+    }
+}
+```
 
 ## License
 
