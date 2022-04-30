@@ -133,17 +133,45 @@
 //!         }
 //!     }
 //! }
+//! ```
+//! - Modify how will an input parameter be passed to the delegated method with parameter attribute modifiers.
+//! Currently, the following modifiers are supported:
+//!     - `#[into]`: Calls `.into()` on the parameter passed to the delegated method.
+//! ```rust
+//! use delegate::delegate;
+//!
+//! struct InnerType {}
+//! impl InnerType {
+//!     fn foo(&self, other: Self) {}
+//! }
+//!
+//! impl From<Wrapper> for InnerType {
+//!     fn from(wrapper: Wrapper) -> Self {
+//!         wrapper.0
+//!     }
+//! }
+//!
+//! struct Wrapper(InnerType);
+//! impl Wrapper {
+//!     delegate! {
+//!         to self.0 {
+//!             // Calls `self.0.foo(other.into());`
+//!             pub fn foo(&self, #[into] other: Self);
+//!         }
+//!     }
+//! }
+//! ```
 
 extern crate proc_macro;
 
 use proc_macro::TokenStream;
-use proc_macro2::TokenStream as TokenStream2;
+use proc_macro2::{Ident, TokenStream as TokenStream2};
 
 use quote::quote;
 use std::collections::HashMap;
 use syn::parse::ParseStream;
 use syn::spanned::Spanned;
-use syn::Error;
+use syn::{Error, ExprMethodCall, Meta};
 
 mod kw {
     syn::custom_keyword!(to);
@@ -151,13 +179,35 @@ mod kw {
 }
 
 #[derive(Clone)]
+enum ArgumentModifier {
+    Into,
+}
+
+#[derive(Clone)]
 enum DelegatedInput {
-    Input(syn::FnArg),
+    Input {
+        parameter: syn::FnArg,
+        modifier: Option<ArgumentModifier>,
+    },
     Argument(syn::Expr),
 }
 
+fn get_argument_modifier(attribute: syn::Attribute) -> Result<ArgumentModifier, Error> {
+    let meta = attribute.parse_meta()?;
+    if let Meta::Path(mut path) = meta {
+        if path.segments.len() == 1 {
+            let segment = path.segments.pop().unwrap();
+            if segment.value().arguments.is_empty() && segment.value().ident == "into" {
+                return Ok(ArgumentModifier::Into);
+            }
+        }
+    };
+
+    panic!("The attribute argument has to be `from`, like this: `#[from] a: u32`.")
+}
+
 impl syn::parse::Parse for DelegatedInput {
-    fn parse(input: syn::parse::ParseStream) -> Result<Self, Error> {
+    fn parse(input: ParseStream) -> Result<Self, Error> {
         let lookahead = input.lookahead1();
         if lookahead.peek(syn::token::Bracket) {
             let content;
@@ -165,8 +215,24 @@ impl syn::parse::Parse for DelegatedInput {
             let expression: syn::Expr = content.parse()?;
             Ok(Self::Argument(expression))
         } else {
-            let input: syn::FnArg = input.parse()?;
-            Ok(Self::Input(input))
+            let (input, modifier) = if lookahead.peek(syn::token::Pound) {
+                let mut attributes = input.call(syn::Attribute::parse_outer)?;
+                if attributes.len() > 1 {
+                    panic!("You can specify at most a single attribute for each parameter in a delegated method");
+                }
+                let modifier = get_argument_modifier(attributes.pop().unwrap())
+                    .expect("Could not parse argument modifier attribute");
+
+                let input: syn::FnArg = input.parse()?;
+                (input, Some(modifier))
+            } else {
+                (input.parse()?, None)
+            };
+
+            Ok(Self::Input {
+                parameter: input,
+                modifier,
+            })
         }
     }
 }
@@ -293,13 +359,36 @@ impl syn::parse::Parse for DelegatedMethod {
                 // the inputs with relation to arguments (see above), so the
                 // parsing is best done here (previously it was done at
                 // generation).
-                (DelegatedInput::Input(input), maybe_comma) => {
-                    inputs.push_value(input.clone());
+                (
+                    DelegatedInput::Input {
+                        parameter,
+                        modifier,
+                    },
+                    maybe_comma,
+                ) => {
+                    inputs.push_value(parameter.clone());
                     if let Some(comma) = maybe_comma {
                         inputs.push_punct(comma);
                     }
-                    let maybe_argument = parse_input_into_argument_expression(&ident, &input);
-                    if let Some(argument) = maybe_argument {
+                    let maybe_argument = parse_input_into_argument_expression(&ident, &parameter);
+                    if let Some(mut argument) = maybe_argument {
+                        if let Some(modifier) = modifier {
+                            let span = argument.span();
+                            match modifier {
+                                ArgumentModifier::Into => {
+                                    argument = syn::Expr::from(ExprMethodCall {
+                                        attrs: vec![],
+                                        receiver: Box::new(argument),
+                                        dot_token: Default::default(),
+                                        method: Ident::new("into", span),
+                                        turbofish: None,
+                                        paren_token,
+                                        args: Default::default(),
+                                    });
+                                }
+                            }
+                        }
+
                         arguments.push(argument);
                         if let Some(comma) = maybe_comma {
                             arguments.push_punct(comma);
