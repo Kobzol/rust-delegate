@@ -35,10 +35,9 @@
 //!     }
 //! }
 //! ```
-//! - Change the return type of the delegated method using a `From` impl or omit it altogether
+//! - Change the return type of the delegated method using a `From` or `TryFrom` impl or omit it altogether
 //! ```rust
 //! use delegate::delegate;
-//!
 //! struct Inner;
 //! impl Inner {
 //!     pub fn method(&self, num: u32) -> u32 { num }
@@ -47,13 +46,23 @@
 //! impl Wrapper {
 //!     delegate! {
 //!         to self.inner {
-//!             // calls method, converts result to u64
+//!             // calls method, converts result to u64 using `From`
 //!             #[into]
 //!             pub fn method(&self, num: u32) -> u64;
 //!
 //!             // calls method, returns ()
 //!             #[call(method)]
 //!             pub fn method_noreturn(&self, num: u32);
+//!
+//!             // calls method, converts result to i6 using `TryFrom`
+//!             #[try_into]
+//!             #[call(method)]
+//!             pub fn method2(&self, num: u32) -> Result<u16, std::num::TryFromIntError>;
+//!
+//!             // calls method, converts result to i6 using `TryFrom`, unwrap the result
+//!             #[try_into(unwrap)]
+//!             #[call(method)]
+//!             pub fn method3(&self, num: u32) -> u16;
 //!         }
 //!     }
 //! }
@@ -165,13 +174,13 @@
 extern crate proc_macro;
 
 use proc_macro::TokenStream;
-use proc_macro2::{Ident, TokenStream as TokenStream2};
+use proc_macro2::Ident;
 
-use quote::quote;
+use quote::{quote, ToTokens};
 use std::collections::HashMap;
 use syn::parse::ParseStream;
 use syn::spanned::Spanned;
-use syn::{Error, ExprMethodCall, Meta};
+use syn::{Attribute, Error, ExprMethodCall, Meta};
 
 mod kw {
     syn::custom_keyword!(to);
@@ -528,16 +537,23 @@ impl syn::parse::Parse for GenerateAwaitAttribute {
     }
 }
 
+enum TryIntoMethod {
+    Raw,
+    Unwrap,
+}
+
 struct ParsedAttributes<'a> {
     attributes: Vec<&'a syn::Attribute>,
     target_method: Option<syn::Ident>,
     generate_into: bool,
     generate_await: bool,
+    try_into: Option<TryIntoMethod>,
 }
 
 /// Iterates through the attributes of a method and filters special attributes.
 /// - call => sets the name of the target method to call
-/// - into => generates a `into()` call for the returned value
+/// - into => generates a `into()` call after the delegated expression
+/// - try_into => generates a `try_into()` call after delegated expression
 /// - await => generates an `.await` expression after the delegated expression
 fn parse_attributes<'a>(
     attrs: &'a [syn::Attribute],
@@ -546,13 +562,14 @@ fn parse_attributes<'a>(
     let mut target_method: Option<syn::Ident> = None;
     let mut generate_into: Option<bool> = None;
     let mut generate_await: Option<bool> = None;
+    let mut try_into: Option<TryIntoMethod> = None;
 
-    let mut map: HashMap<&str, Box<dyn FnMut(TokenStream2)>> = Default::default();
+    let mut map: HashMap<&str, Box<dyn FnMut(&Attribute)>> = Default::default();
 
     map.insert(
         "call",
-        Box::new(|stream| {
-            let target = syn::parse2::<CallMethodAttribute>(stream).unwrap();
+        Box::new(|attribute| {
+            let target = syn::parse2::<CallMethodAttribute>(attribute.tokens.clone()).unwrap();
             if target_method.is_some() {
                 panic!(
                     "Multiple call attributes specified for {}",
@@ -573,7 +590,7 @@ fn parse_attributes<'a>(
         Box::new(|_| {
             if generate_into.is_some() {
                 panic!(
-                    "Multiple into attributes specified for {}",
+                    "Multiple `into` attributes specified for {}",
                     method.sig.ident
                 )
             }
@@ -581,15 +598,44 @@ fn parse_attributes<'a>(
         }),
     );
     map.insert(
-        "await",
-        Box::new(|stream| {
-            if generate_await.is_some() {
+        "try_into",
+        Box::new(|attribute| {
+            if try_into.is_some() {
                 panic!(
-                    "Multiple await attributes specified for {}",
+                    "Multiple `try_into` attributes specified for {}",
                     method.sig.ident
                 )
             }
-            let generate = syn::parse2::<GenerateAwaitAttribute>(stream).unwrap();
+            let meta = attribute
+                .parse_meta()
+                .expect("Invalid `try_into` arguments");
+
+            if let Meta::List(list) = meta {
+                if let Some(syn::NestedMeta::Meta(Meta::Path(path))) = list.nested.first() {
+                    if path.is_ident("unwrap") {
+                        try_into = Some(TryIntoMethod::Unwrap);
+                        return;
+                    }
+                    panic!(
+                        "Unknown `try_into` argument {} specified for {}",
+                        path.to_token_stream(),
+                        method.sig.ident
+                    )
+                }
+            }
+            try_into = Some(TryIntoMethod::Raw);
+        }),
+    );
+    map.insert(
+        "await",
+        Box::new(|attribute| {
+            if generate_await.is_some() {
+                panic!(
+                    "Multiple `await` attributes specified for {}",
+                    method.sig.ident
+                )
+            }
+            let generate = syn::parse2::<GenerateAwaitAttribute>(attribute.tokens.clone()).unwrap();
             generate_await = Some(generate.literal.value);
         }),
     );
@@ -600,7 +646,7 @@ fn parse_attributes<'a>(
             if let syn::AttrStyle::Outer = attr.style {
                 for (ident, callback) in map.iter_mut() {
                     if attr.path.is_ident(ident) {
-                        callback(attr.tokens.clone());
+                        callback(attr);
                         return false;
                     }
                 }
@@ -617,6 +663,7 @@ fn parse_attributes<'a>(
         target_method,
         generate_into: generate_into.unwrap_or(false),
         generate_await: generate_await.unwrap_or_else(|| method.sig.asyncness.is_some()),
+        try_into,
     }
 }
 
@@ -675,7 +722,16 @@ pub fn delegate(tokens: TokenStream) -> TokenStream {
                 syn::ReturnType::Default => quote::quote! { #body; },
                 syn::ReturnType::Type(_, ret_type) => {
                     if attributes.generate_into {
-                        quote::quote! { std::convert::Into::<#ret_type>::into(#body) }
+                        quote::quote! { ::std::convert::Into::<#ret_type>::into(#body) }
+                    } else if let Some(try_into) = attributes.try_into {
+                        match try_into {
+                            TryIntoMethod::Raw => {
+                                quote::quote! { ::std::convert::TryInto::try_into(#body) }
+                            }
+                            TryIntoMethod::Unwrap => {
+                                quote::quote! { ::std::convert::TryInto::try_into(#body).unwrap() }
+                            }
+                        }
                     } else {
                         body
                     }
