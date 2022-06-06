@@ -1,4 +1,4 @@
-# Development
+# 0.7.0 (6. 6. 2022)
 - Add new `#[into]` attribute for delegated function parameters. If specified, the parameter will be
 converted using the `From` trait before being passed as an argument to the called function.
 - Add new `#[try_from]` attribute to delegated functions. You can use it to convert the delegated
