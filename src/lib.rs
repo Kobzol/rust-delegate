@@ -35,6 +35,72 @@
 //!     }
 //! }
 //! ```
+//!
+//! - Delegate to enum variants
+//!
+//! ```rust
+//! use delegate::delegate;
+//!
+//! enum Enum {
+//!     A(A),
+//!     B(B),
+//!     C { v: C },
+//! }
+//!
+//! struct A {
+//!     val: usize,
+//! }
+//!
+//! impl A {
+//!     fn dbg_inner(&self) -> usize {
+//!         dbg!(self.val);
+//!         1
+//!     }
+//! }
+//! struct B {
+//!     val_a: String,
+//! }
+//!
+//! impl B {
+//!     fn dbg_inner(&self) -> usize {
+//!         dbg!(self.val_a.clone());
+//!         2
+//!     }
+//! }
+//!
+//! struct C {
+//!     val_c: f64,
+//! }
+//!
+//! impl C {
+//!     fn dbg_inner(&self) -> usize {
+//!         dbg!(self.val_c);
+//!         3
+//!     }
+//! }
+//!
+//! impl Enum {
+//!     delegate! {
+//!         // transformed to
+//!         //
+//!         // ```rust
+//!         // match self {
+//!         //     Enum::A(a) => a.dbg_inner(),
+//!         //     Enum::B(b) => { println!("i am b"); b }.dbg_inner(),
+//!         //     Enum::C { v: c } => { c }.dbg_inner(),
+//!         // }
+//!         // ```
+//!         to match self {
+//!             Enum::A(a) => a,
+//!             Enum::B(b) => { println!("i am b"); b },
+//!             Enum::C { v: c } => { c },
+//!         } {
+//!             fn dbg_inner(&self) -> usize;
+//!         }
+//!     }
+//! }
+//! ```
+//!
 //! - Change the return type of the delegated method using a `From` or `TryFrom` impl or omit it altogether
 //! ```rust
 //! use delegate::delegate;
@@ -180,7 +246,8 @@ use quote::{quote, ToTokens};
 use std::collections::HashMap;
 use syn::parse::ParseStream;
 use syn::spanned::Spanned;
-use syn::{Attribute, Error, ExprMethodCall, Meta};
+use syn::visit_mut::VisitMut;
+use syn::{parse_quote, Attribute, Error, ExprMethodCall, Meta};
 
 mod kw {
     syn::custom_keyword!(to);
@@ -564,6 +631,8 @@ fn parse_attributes<'a>(
     let mut generate_await: Option<bool> = None;
     let mut try_into: Option<TryIntoMethod> = None;
 
+    // https://github.com/rust-lang/rust/issues/70263
+    #[allow(clippy::type_complexity)]
     let mut map: HashMap<&str, Box<dyn FnMut(&Attribute)>> = Default::default();
 
     map.insert(
@@ -678,11 +747,26 @@ fn has_inline_attribute(attrs: &[&syn::Attribute]) -> bool {
     })
 }
 
+struct MatchVisitor {
+    name: Ident,
+    args: Vec<syn::Expr>,
+}
+
+impl VisitMut for MatchVisitor {
+    fn visit_arm_mut(&mut self, arm: &mut syn::Arm) {
+        let body = arm.body.clone();
+        let name = &self.name;
+        let args = &self.args;
+        arm.body = parse_quote!( { #body.#name(#(#args),*) });
+    }
+}
+
 #[proc_macro]
 pub fn delegate(tokens: TokenStream) -> TokenStream {
     let block: DelegationBlock = syn::parse_macro_input!(tokens);
     let sections = block.segments.iter().map(|delegator| {
         let delegator_attribute = &delegator.delegator;
+
         let functions = delegator.methods.iter().map(|method| {
             let input = &method.method;
             let signature = &input.sig;
@@ -710,7 +794,17 @@ pub fn delegate(tokens: TokenStream) -> TokenStream {
             };
             let visibility = &method.visibility;
 
-            let body = quote::quote! { #delegator_attribute.#name(#(#args),*) };
+            let body = if let syn::Expr::Match(expr_match) = delegator_attribute {
+                let mut expr_match = expr_match.clone();
+                MatchVisitor {
+                    name: name.clone(),
+                    args,
+                }
+                .visit_expr_match_mut(&mut expr_match);
+                expr_match.into_token_stream()
+            } else {
+                quote::quote! { #delegator_attribute.#name(#(#args),*) }
+            };
             let body = if attributes.generate_await {
                 quote::quote! { #body.await }
             } else {
