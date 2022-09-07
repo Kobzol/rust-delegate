@@ -1,4 +1,4 @@
-# Dev
+# 0.8.0 (7. 9. 2022)
 - Allow simple delegation to enum variants ([#45](https://github.com/Kobzol/rust-delegate/pull/45)).
 Implemented by @gfreezy.
 
