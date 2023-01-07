@@ -212,6 +212,7 @@
 //! - Modify how will an input parameter be passed to the delegated method with parameter attribute modifiers.
 //! Currently, the following modifiers are supported:
 //!     - `#[into]`: Calls `.into()` on the parameter passed to the delegated method.
+//!     - `#[as_ref]`: Calls `.as_ref()` on the parameter passed to the delegated method.
 //! ```rust
 //! use delegate::delegate;
 //!
@@ -257,6 +258,7 @@ mod kw {
 #[derive(Clone)]
 enum ArgumentModifier {
     Into,
+    AsRef,
 }
 
 #[derive(Clone)]
@@ -273,13 +275,20 @@ fn get_argument_modifier(attribute: syn::Attribute) -> Result<ArgumentModifier, 
     if let Meta::Path(mut path) = meta {
         if path.segments.len() == 1 {
             let segment = path.segments.pop().unwrap();
-            if segment.value().arguments.is_empty() && segment.value().ident == "into" {
-                return Ok(ArgumentModifier::Into);
+            if segment.value().arguments.is_empty() {
+                let ident = segment.value().ident.to_string();
+                let ident = ident.as_str();
+
+                match ident {
+                    "into" => return Ok(ArgumentModifier::Into),
+                    "as_ref" => return Ok(ArgumentModifier::AsRef),
+                    _ => (),
+                }
             }
         }
     };
 
-    panic!("The attribute argument has to be `from`, like this: `#[from] a: u32`.")
+    panic!("The attribute argument has to be `from` or `as_ref`, like this: `#[from] a: u32`.")
 }
 
 impl syn::parse::Parse for DelegatedInput {
@@ -448,19 +457,27 @@ impl syn::parse::Parse for DelegatedMethod {
                     }
                     let maybe_argument = parse_input_into_argument_expression(&ident, &parameter);
                     if let Some(mut argument) = maybe_argument {
+                        let span = argument.span();
+
                         if let Some(modifier) = modifier {
-                            let span = argument.span();
+                            let method_call = |name: &str| {
+                                syn::Expr::from(ExprMethodCall {
+                                    attrs: vec![],
+                                    receiver: Box::new(argument.clone()),
+                                    dot_token: Default::default(),
+                                    method: Ident::new(name, span),
+                                    turbofish: None,
+                                    paren_token,
+                                    args: Default::default(),
+                                })
+                            };
+
                             match modifier {
                                 ArgumentModifier::Into => {
-                                    argument = syn::Expr::from(ExprMethodCall {
-                                        attrs: vec![],
-                                        receiver: Box::new(argument),
-                                        dot_token: Default::default(),
-                                        method: Ident::new("into", span),
-                                        turbofish: None,
-                                        paren_token,
-                                        args: Default::default(),
-                                    });
+                                    argument = method_call("into");
+                                }
+                                ArgumentModifier::AsRef => {
+                                    argument = method_call("as_ref");
                                 }
                             }
                         }
