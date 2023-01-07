@@ -254,6 +254,7 @@ impl Wrapper {
   parameter attribute modifiers. Currently, the following modifiers are
   supported:
   - `#[into]`: Calls `.into()` on the parameter passed to the delegated method.
+  - `#[as_ref]`: Calls `.as_ref()` on the parameter passed to the delegated method.
 
 ```rust
 use delegate::delegate;
