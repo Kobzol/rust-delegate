@@ -23,3 +23,18 @@ impl Foo for MyNewU32 {
         }
     }
 }
+
+struct Bar {
+    foo: String,
+}
+
+impl<T> PartialEq<T> for Bar
+where
+    T: AsRef<str> + ?Sized,
+{
+    delegate! {
+        to self.foo {
+            fn eq(&self, #[as_ref] other: &T) -> bool;
+        }
+    }
+}
