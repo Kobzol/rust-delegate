@@ -1,6 +1,10 @@
+# 0.9.0 (16. 1. 2023)
+- Add new `#[as_ref]` function parameter modifier ([#47](https://github.com/Kobzol/rust-delegate/pull/47)).
+  Implemented by [trueegorletov](https://github.com/trueegorletov).
+
 # 0.8.0 (7. 9. 2022)
 - Allow simple delegation to enum variants ([#45](https://github.com/Kobzol/rust-delegate/pull/45)).
-Implemented by @gfreezy.
+Implemented by [gfreezy](https://github.com/gfreezy).
 
 # 0.7.0 (6. 6. 2022)
 - Add new `#[into]` attribute for delegated function parameters. If specified, the parameter will be
