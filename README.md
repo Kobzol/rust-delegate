@@ -137,13 +137,14 @@ impl Enum {
 }
 ````
 
-- Change the return type of the delegated method using a `From` or `TryFrom`
-  impl or omit it altogether
+- Use modifiers that alter the generated method body
 
 ```rust
+use delegate::delegate;
 struct Inner;
 impl Inner {
     pub fn method(&self, num: u32) -> u32 { num }
+    pub fn method_res(&self, num: u32) -> Result<u32, ()> { Ok(num) }
 }
 struct Wrapper { inner: Inner }
 impl Wrapper {
@@ -162,10 +163,15 @@ impl Wrapper {
             #[call(method)]
             pub fn method2(&self, num: u32) -> Result<u16, std::num::TryFromIntError>;
 
-            // calls method, converts result to i6 using `TryFrom`, unwrap the result
-            #[try_into(unwrap)]
-            #[call(method)]
-            pub fn method3(&self, num: u32) -> u16;
+            // calls method_res, unwraps the result
+            #[unwrap]
+            pub fn method_res(&self, num: u32) -> u32;
+
+            // calls method_res, unwraps the result, then calls into
+            #[unwrap]
+            #[into]
+            #[call(method_res)]
+            pub fn method_res_into(&self, num: u32) -> u64;
         }
     }
 }

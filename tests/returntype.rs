@@ -107,3 +107,161 @@ fn test_try_into() {
 
     assert_eq!(wrapper.method(), Ok(B));
 }
+
+#[test]
+fn test_try_into_unwrap() {
+    struct A;
+
+    #[derive(Debug, PartialEq)]
+    struct B;
+
+    impl TryFrom<A> for B {
+        type Error = u32;
+
+        fn try_from(_value: A) -> Result<Self, Self::Error> {
+            Ok(B)
+        }
+    }
+
+    struct Inner;
+    impl Inner {
+        pub fn method(&self) -> A {
+            A
+        }
+    }
+
+    struct Wrapper {
+        inner: Inner,
+    }
+
+    impl Wrapper {
+        delegate! {
+            to self.inner {
+                #[try_into]
+                #[unwrap]
+                fn method(&self) -> B;
+            }
+        }
+    }
+
+    let wrapper = Wrapper { inner: Inner };
+
+    assert_eq!(wrapper.method(), B);
+}
+
+#[test]
+fn test_unwrap_result() {
+    struct Inner;
+    impl Inner {
+        pub fn method(&self) -> Result<u32, ()> {
+            Ok(0)
+        }
+    }
+
+    struct Wrapper {
+        inner: Inner,
+    }
+
+    impl Wrapper {
+        delegate! {
+            to self.inner {
+                #[unwrap]
+                fn method(&self) -> u32;
+            }
+        }
+    }
+
+    let wrapper = Wrapper { inner: Inner };
+
+    assert_eq!(wrapper.method(), 0);
+}
+
+#[test]
+fn test_unwrap_option() {
+    struct Inner;
+    impl Inner {
+        pub fn method(&self) -> Option<u32> {
+            Some(0)
+        }
+    }
+
+    struct Wrapper {
+        inner: Inner,
+    }
+
+    impl Wrapper {
+        delegate! {
+            to self.inner {
+                #[unwrap]
+                fn method(&self) -> u32;
+            }
+        }
+    }
+
+    let wrapper = Wrapper { inner: Inner };
+
+    assert_eq!(wrapper.method(), 0);
+}
+
+#[test]
+#[should_panic]
+fn test_unwrap_no_return() {
+    struct Inner;
+    impl Inner {
+        pub fn method(&self) -> Result<u32, ()> {
+            Err(())
+        }
+    }
+
+    struct Wrapper {
+        inner: Inner,
+    }
+
+    impl Wrapper {
+        delegate! {
+            to self.inner {
+                #[unwrap]
+                fn method(&self);
+            }
+        }
+    }
+
+    let wrapper = Wrapper { inner: Inner };
+    wrapper.method();
+}
+
+#[test]
+fn test_unwrap_into() {
+    struct A(u32);
+
+    impl From<u32> for A {
+        fn from(value: u32) -> Self {
+            A(value)
+        }
+    }
+
+    struct Inner;
+    impl Inner {
+        pub fn method(&self) -> Result<u32, ()> {
+            Ok(0)
+        }
+    }
+
+    struct Wrapper {
+        inner: Inner,
+    }
+
+    impl Wrapper {
+        delegate! {
+            to self.inner {
+                #[unwrap]
+                #[into]
+                fn method(&self) -> A;
+            }
+        }
+    }
+
+    let wrapper = Wrapper { inner: Inner };
+
+    assert!(matches!(wrapper.method(), A(0)));
+}
