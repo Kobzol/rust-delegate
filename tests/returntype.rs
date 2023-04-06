@@ -2,38 +2,7 @@ use delegate::delegate;
 use std::convert::TryFrom;
 
 #[test]
-fn test_rettype() {
-    struct Inner;
-    impl Inner {
-        pub fn method(&self, num: u32) -> u32 {
-            num
-        }
-    }
-
-    struct Wrapper {
-        inner: Inner,
-    }
-
-    impl Wrapper {
-        delegate! {
-            to self.inner {
-                pub(crate) fn method(&self, num: u32);
-
-                #[into]
-                #[call(method)]
-                pub(crate) fn method_conv(&self, num: u32) -> u64;
-            }
-        }
-    }
-
-    let wrapper = Wrapper { inner: Inner };
-
-    assert_eq!(wrapper.method(3), ());
-    assert_eq!(wrapper.method_conv(3), 3u64);
-}
-
-#[test]
-fn test_rettype_generic() {
+fn test_generic_returntype() {
     trait TestTrait {
         fn create(num: u32) -> Self;
     }
@@ -66,6 +35,37 @@ fn test_rettype_generic() {
     let wrapper = Wrapper { inner: Inner, s: 3 };
 
     assert_eq!(wrapper.method(), 0);
+}
+
+#[test]
+fn test_into() {
+    struct Inner;
+    impl Inner {
+        pub fn method(&self, num: u32) -> u32 {
+            num
+        }
+    }
+
+    struct Wrapper {
+        inner: Inner,
+    }
+
+    impl Wrapper {
+        delegate! {
+            to self.inner {
+                pub(crate) fn method(&self, num: u32);
+
+                #[into]
+                #[call(method)]
+                pub(crate) fn method_conv(&self, num: u32) -> u64;
+            }
+        }
+    }
+
+    let wrapper = Wrapper { inner: Inner };
+
+    assert_eq!(wrapper.method(3), ());
+    assert_eq!(wrapper.method_conv(3), 3u64);
 }
 
 #[test]
@@ -264,4 +264,40 @@ fn test_unwrap_into() {
     let wrapper = Wrapper { inner: Inner };
 
     assert!(matches!(wrapper.method(), A(0)));
+}
+
+#[test]
+fn test_into_unwrap() {
+    struct A(u32);
+
+    impl From<A> for Result<u32, ()> {
+        fn from(value: A) -> Self {
+            Ok(value.0)
+        }
+    }
+
+    struct Inner;
+    impl Inner {
+        pub fn method(&self) -> A {
+            A(0)
+        }
+    }
+
+    struct Wrapper {
+        inner: Inner,
+    }
+
+    impl Wrapper {
+        delegate! {
+            to self.inner {
+                #[into(Result<u32, ()>)]
+                #[unwrap]
+                fn method(&self) -> u32;
+            }
+        }
+    }
+
+    let wrapper = Wrapper { inner: Inner };
+
+    assert_eq!(wrapper.method(), 0);
 }

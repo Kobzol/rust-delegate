@@ -172,6 +172,11 @@ impl Wrapper {
             #[into]
             #[call(method_res)]
             pub fn method_res_into(&self, num: u32) -> u64;
+
+            // specify explicit type for into
+            #[into(u64)]
+            #[call(method)]
+            pub fn method_into_explicit(&self, num: u32) -> u64;
         }
     }
 }

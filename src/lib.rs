@@ -135,6 +135,11 @@
 //!             #[into]
 //!             #[call(method_res)]
 //!             pub fn method_res_into(&self, num: u32) -> u64;
+//!
+//!             // specify explicit type for into
+//!             #[into(u64)]
+//!             #[call(method)]
+//!             pub fn method_into_explicit(&self, num: u32) -> u64;
 //!         }
 //!     }
 //! }
@@ -679,8 +684,13 @@ pub fn delegate(tokens: TokenStream) -> TokenStream {
 
             for expression in attributes.expressions {
                 match expression {
-                    ReturnExpression::Into => {
-                        body = quote::quote! { ::std::convert::Into::into(#body) };
+                    ReturnExpression::Into(type_name) => {
+                        body = match type_name {
+                            Some(name) => {
+                                quote::quote! { ::std::convert::Into::<#name>::into(#body) }
+                            }
+                            None => quote::quote! { ::std::convert::Into::into(#body) },
+                        };
                     }
                     ReturnExpression::TryInto => {
                         body = quote::quote! { ::std::convert::TryInto::try_into(#body) };

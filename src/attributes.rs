@@ -1,5 +1,5 @@
 use syn::parse::ParseStream;
-use syn::{Attribute, Error, Meta};
+use syn::{Attribute, Error, Meta, TypePath};
 
 struct CallMethodAttribute {
     name: syn::Ident,
@@ -29,8 +29,34 @@ impl syn::parse::Parse for GenerateAwaitAttribute {
     }
 }
 
+struct IntoAttribute {
+    type_path: Option<TypePath>,
+}
+
+impl syn::parse::Parse for IntoAttribute {
+    fn parse(input: ParseStream) -> Result<Self, Error> {
+        if input.peek(syn::token::Paren) {
+            let content;
+            syn::parenthesized!(content in input);
+
+            let type_path: TypePath = content.parse().map_err(|error| {
+                Error::new(
+                    input.span(),
+                    format!("{error}\nExpected type name, e.g. #[into(u32)]"),
+                )
+            })?;
+
+            Ok(IntoAttribute {
+                type_path: Some(type_path),
+            })
+        } else {
+            Ok(IntoAttribute { type_path: None })
+        }
+    }
+}
+
 pub enum ReturnExpression {
-    Into,
+    Into(Option<TypePath>),
     TryInto,
     Unwrap,
 }
@@ -79,7 +105,8 @@ pub fn parse_attributes<'a>(
                         return false;
                     }
                     "into" => {
-                        expressions.push(ReturnExpression::Into);
+                        let into = syn::parse2::<IntoAttribute>(attribute.tokens.clone()).unwrap();
+                        expressions.push(ReturnExpression::Into(into.type_path));
                         return false;
                     }
                     "try_into" => {
