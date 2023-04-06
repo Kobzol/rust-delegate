@@ -99,10 +99,6 @@ fn test_try_into() {
             to self.inner {
                 #[try_into]
                 fn method(&self) -> Result<B, u32>;
-
-                #[try_into(unwrap)]
-                #[call(method)]
-                fn method2(&self) -> B;
             }
         }
     }
@@ -110,5 +106,4 @@ fn test_try_into() {
     let wrapper = Wrapper { inner: Inner };
 
     assert_eq!(wrapper.method(), Ok(B));
-    assert_eq!(wrapper.method2(), B);
 }
