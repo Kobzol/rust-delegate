@@ -124,11 +124,6 @@
 //!             #[try_into]
 //!             #[call(method)]
 //!             pub fn method2(&self, num: u32) -> Result<u16, std::num::TryFromIntError>;
-//!
-//!             // calls method, converts result to i6 using `TryFrom`, unwrap the result
-//!             #[try_into(unwrap)]
-//!             #[call(method)]
-//!             pub fn method3(&self, num: u32) -> u16;
 //!         }
 //!     }
 //! }
@@ -238,17 +233,19 @@
 //! }
 //! ```
 
+mod attributes;
+
 extern crate proc_macro;
 
 use proc_macro::TokenStream;
 use proc_macro2::Ident;
 
+use crate::attributes::{parse_attributes, ReturnExpression};
 use quote::{quote, ToTokens};
-use std::collections::HashMap;
 use syn::parse::ParseStream;
 use syn::spanned::Spanned;
 use syn::visit_mut::VisitMut;
-use syn::{parse_quote, Attribute, Error, ExprMethodCall, Meta};
+use syn::{parse_quote, Error, ExprMethodCall, Meta};
 
 mod kw {
     syn::custom_keyword!(to);
@@ -593,166 +590,6 @@ impl syn::parse::Parse for DelegationBlock {
     }
 }
 
-struct CallMethodAttribute {
-    name: syn::Ident,
-}
-
-impl syn::parse::Parse for CallMethodAttribute {
-    fn parse(input: ParseStream) -> Result<Self, Error> {
-        let content;
-        syn::parenthesized!(content in input);
-        Ok(CallMethodAttribute {
-            name: content.parse()?,
-        })
-    }
-}
-
-struct GenerateAwaitAttribute {
-    literal: syn::LitBool,
-}
-
-impl syn::parse::Parse for GenerateAwaitAttribute {
-    fn parse(input: ParseStream) -> Result<Self, Error> {
-        let content;
-        syn::parenthesized!(content in input);
-        Ok(GenerateAwaitAttribute {
-            literal: content.parse()?,
-        })
-    }
-}
-
-enum TryIntoMethod {
-    Raw,
-    Unwrap,
-}
-
-struct ParsedAttributes<'a> {
-    attributes: Vec<&'a syn::Attribute>,
-    target_method: Option<syn::Ident>,
-    generate_into: bool,
-    generate_await: bool,
-    try_into: Option<TryIntoMethod>,
-}
-
-/// Iterates through the attributes of a method and filters special attributes.
-/// - call => sets the name of the target method to call
-/// - into => generates a `into()` call after the delegated expression
-/// - try_into => generates a `try_into()` call after delegated expression
-/// - await => generates an `.await` expression after the delegated expression
-fn parse_attributes<'a>(
-    attrs: &'a [syn::Attribute],
-    method: &syn::TraitItemMethod,
-) -> ParsedAttributes<'a> {
-    let mut target_method: Option<syn::Ident> = None;
-    let mut generate_into: Option<bool> = None;
-    let mut generate_await: Option<bool> = None;
-    let mut try_into: Option<TryIntoMethod> = None;
-
-    // https://github.com/rust-lang/rust/issues/70263
-    #[allow(clippy::type_complexity)]
-    let mut map: HashMap<&str, Box<dyn FnMut(&Attribute)>> = Default::default();
-
-    map.insert(
-        "call",
-        Box::new(|attribute| {
-            let target = syn::parse2::<CallMethodAttribute>(attribute.tokens.clone()).unwrap();
-            if target_method.is_some() {
-                panic!(
-                    "Multiple call attributes specified for {}",
-                    method.sig.ident
-                )
-            }
-            target_method = Some(target.name);
-        }),
-    );
-    map.insert(
-        "target_method",
-        Box::new(|_| {
-            panic!("You are using the old `target_method` attribute, which is deprecated. Please replace `target_method` with `call`.");
-        }),
-    );
-    map.insert(
-        "into",
-        Box::new(|_| {
-            if generate_into.is_some() {
-                panic!(
-                    "Multiple `into` attributes specified for {}",
-                    method.sig.ident
-                )
-            }
-            generate_into = Some(true);
-        }),
-    );
-    map.insert(
-        "try_into",
-        Box::new(|attribute| {
-            if try_into.is_some() {
-                panic!(
-                    "Multiple `try_into` attributes specified for {}",
-                    method.sig.ident
-                )
-            }
-            let meta = attribute
-                .parse_meta()
-                .expect("Invalid `try_into` arguments");
-
-            if let Meta::List(list) = meta {
-                if let Some(syn::NestedMeta::Meta(Meta::Path(path))) = list.nested.first() {
-                    if path.is_ident("unwrap") {
-                        try_into = Some(TryIntoMethod::Unwrap);
-                        return;
-                    }
-                    panic!(
-                        "Unknown `try_into` argument {} specified for {}",
-                        path.to_token_stream(),
-                        method.sig.ident
-                    )
-                }
-            }
-            try_into = Some(TryIntoMethod::Raw);
-        }),
-    );
-    map.insert(
-        "await",
-        Box::new(|attribute| {
-            if generate_await.is_some() {
-                panic!(
-                    "Multiple `await` attributes specified for {}",
-                    method.sig.ident
-                )
-            }
-            let generate = syn::parse2::<GenerateAwaitAttribute>(attribute.tokens.clone()).unwrap();
-            generate_await = Some(generate.literal.value);
-        }),
-    );
-
-    let attrs: Vec<&syn::Attribute> = attrs
-        .iter()
-        .filter(|attr| {
-            if let syn::AttrStyle::Outer = attr.style {
-                for (ident, callback) in map.iter_mut() {
-                    if attr.path.is_ident(ident) {
-                        callback(attr);
-                        return false;
-                    }
-                }
-            }
-
-            true
-        })
-        .collect();
-
-    drop(map);
-
-    ParsedAttributes {
-        attributes: attrs,
-        target_method,
-        generate_into: generate_into.unwrap_or(false),
-        generate_await: generate_await.unwrap_or_else(|| method.sig.asyncness.is_some()),
-        try_into,
-    }
-}
-
 /// Returns true if there are any `inline` attributes in the input.
 fn has_inline_attribute(attrs: &[&syn::Attribute]) -> bool {
     attrs.iter().any(|attr| {
@@ -828,24 +665,23 @@ pub fn delegate(tokens: TokenStream) -> TokenStream {
                 body
             };
 
+            // TODO: ignore attributes into/try_into for default return type
             let span = input.span();
             let body = match &signature.output {
                 syn::ReturnType::Default => quote::quote! { #body; },
                 syn::ReturnType::Type(_, ret_type) => {
-                    if attributes.generate_into {
-                        quote::quote! { ::std::convert::Into::<#ret_type>::into(#body) }
-                    } else if let Some(try_into) = attributes.try_into {
-                        match try_into {
-                            TryIntoMethod::Raw => {
-                                quote::quote! { ::std::convert::TryInto::try_into(#body) }
+                    let mut body_expr = body;
+                    for expression in attributes.expressions {
+                        match expression {
+                            ReturnExpression::Into => {
+                                body_expr = quote::quote! { ::std::convert::Into::<#ret_type>::into(#body_expr) };
                             }
-                            TryIntoMethod::Unwrap => {
-                                quote::quote! { ::std::convert::TryInto::try_into(#body).unwrap() }
+                            ReturnExpression::TryInto => {
+                                body_expr = quote::quote! { ::std::convert::TryInto::try_into(#body_expr) };
                             }
                         }
-                    } else {
-                        body
                     }
+                    body_expr
                 }
             };
 
