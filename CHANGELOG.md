@@ -1,3 +1,33 @@
+# Dev
+- Add new `#[unwrap]` expression modifier. Adding it on top of a delegated method will cause the generated
+code to `.unwrap()` the result.
+```rust
+#[unwrap]
+fn foo(&self) -> u32;  // foo().unwrap()
+```
+- Removed `#[try_into(unwrap)]`. It can now be replaced with the combination of `#[try_into]` and `#[unwrap]`:
+```rust
+#[try_into]
+#[unwrap]
+fn foo(&self) -> u32;  // TryInto::try_into(foo()).unwrap()
+```
+- Add the option to specify explicit type path to the `#[into]` expression modifier:
+```rust
+#[into(u64)]
+fn foo(&self) -> u64; // Into::<u64>::into(foo())
+```
+- Expression modifiers `#[into]`, `#[try_into]` and `#[unwrap]` can now be used multiple times. The order
+of their usage dictates in what order they will be applied:
+```rust
+#[into]
+#[unwrap]
+fn foo(&self) -> u32;  // Into::into(foo()).unwrap()
+
+#[unwrap]
+#[into]
+fn foo(&self) -> u32;  // Into::into(foo().unwrap())
+```
+
 # 0.9.0 (16. 1. 2023)
 - Add new `#[as_ref]` function parameter modifier ([#47](https://github.com/Kobzol/rust-delegate/pull/47)).
   Implemented by [trueegorletov](https://github.com/trueegorletov).
