@@ -32,6 +32,7 @@ impl syn::parse::Parse for GenerateAwaitAttribute {
 pub enum ReturnExpression {
     Into,
     TryInto,
+    Unwrap,
 }
 
 pub struct ParsedAttributes<'a> {
@@ -98,6 +99,10 @@ pub fn parse_attributes<'a>(
                             }
                         }
                         expressions.push(ReturnExpression::TryInto);
+                        return false;
+                    }
+                    "unwrap" => {
+                        expressions.push(ReturnExpression::Unwrap);
                         return false;
                     }
                     "await" => {

@@ -101,12 +101,13 @@
 //! }
 //! ```
 //!
-//! - Change the return type of the delegated method using a `From` or `TryFrom` impl or omit it altogether
+//! - Use modifiers that alter the generated method body
 //! ```rust
 //! use delegate::delegate;
 //! struct Inner;
 //! impl Inner {
 //!     pub fn method(&self, num: u32) -> u32 { num }
+//!     pub fn method_res(&self, num: u32) -> Result<u32, ()> { Ok(num) }
 //! }
 //! struct Wrapper { inner: Inner }
 //! impl Wrapper {
@@ -124,6 +125,16 @@
 //!             #[try_into]
 //!             #[call(method)]
 //!             pub fn method2(&self, num: u32) -> Result<u16, std::num::TryFromIntError>;
+//!
+//!             // calls method_res, unwraps the result
+//!             #[unwrap]
+//!             pub fn method_res(&self, num: u32) -> u32;
+//!
+//!             // calls method_res, unwraps the result, then calls into
+//!             #[unwrap]
+//!             #[into]
+//!             #[call(method_res)]
+//!             pub fn method_res_into(&self, num: u32) -> u64;
 //!         }
 //!     }
 //! }
@@ -388,7 +399,7 @@ impl syn::parse::Parse for DelegatedMethod {
         let unsafety: Option<syn::Token![unsafe]> = input.parse()?;
         let abi: Option<syn::Abi> = input.parse()?;
         let fn_token: syn::Token![fn] = input.parse()?;
-        let ident: syn::Ident = input.parse()?;
+        let ident: Ident = input.parse()?;
         let generics: syn::Generics = input.parse()?;
 
         let content;
@@ -648,6 +659,7 @@ pub fn delegate(tokens: TokenStream) -> TokenStream {
             };
             let visibility = &method.visibility;
 
+            let span = input.span();
             let body = if let syn::Expr::Match(expr_match) = delegator_attribute {
                 let mut expr_match = expr_match.clone();
                 MatchVisitor {
@@ -659,30 +671,28 @@ pub fn delegate(tokens: TokenStream) -> TokenStream {
             } else {
                 quote::quote! { #delegator_attribute.#name(#(#args),*) }
             };
-            let body = if attributes.generate_await {
+            let mut body = if attributes.generate_await {
                 quote::quote! { #body.await }
             } else {
                 body
             };
 
-            // TODO: ignore attributes into/try_into for default return type
-            let span = input.span();
-            let body = match &signature.output {
-                syn::ReturnType::Default => quote::quote! { #body; },
-                syn::ReturnType::Type(_, ret_type) => {
-                    let mut body_expr = body;
-                    for expression in attributes.expressions {
-                        match expression {
-                            ReturnExpression::Into => {
-                                body_expr = quote::quote! { ::std::convert::Into::<#ret_type>::into(#body_expr) };
-                            }
-                            ReturnExpression::TryInto => {
-                                body_expr = quote::quote! { ::std::convert::TryInto::try_into(#body_expr) };
-                            }
-                        }
+            for expression in attributes.expressions {
+                match expression {
+                    ReturnExpression::Into => {
+                        body = quote::quote! { ::std::convert::Into::into(#body) };
                     }
-                    body_expr
+                    ReturnExpression::TryInto => {
+                        body = quote::quote! { ::std::convert::TryInto::try_into(#body) };
+                    }
+                    ReturnExpression::Unwrap => {
+                        body = quote::quote! { #body.unwrap() };
+                    }
                 }
+            }
+
+            if let syn::ReturnType::Default = &signature.output {
+                body = quote::quote! { #body; };
             };
 
             let attrs = attributes.attributes;
