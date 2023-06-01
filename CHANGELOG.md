@@ -1,4 +1,15 @@
 # Dev
+- Allow specifying certain attributes (e.g. `#[into]` or `#[unwrap]`) on delegated segments.
+The attribute will then be applied to all methods in that segment (unless it is overwritten on the method itself).
+```rust
+delegate! {
+  #[unwrap]
+  to self.inner {
+    fn foo(&self) -> u32; // calls self.inner.foo().unwrap()
+    fn bar(&self) -> u32; // calls self.inner.bar().unwrap()
+  }
+}
+```
 - Add new `#[unwrap]` expression modifier. Adding it on top of a delegated method will cause the generated
 code to `.unwrap()` the result.
 ```rust

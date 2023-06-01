@@ -194,6 +194,30 @@
 //! }
 //! ```
 //! - Inserts `#[inline(always)]` automatically (unless you specify `#[inline]` manually on the method)
+//! - You can use an attribute on a whole segment to automatically apply it to all methods in that
+//! segment:
+//! ```rust
+//! use delegate::delegate;
+//!
+//! struct Inner;
+//!
+//! impl Inner {
+//!   fn foo(&self) -> Result<u32, ()> { Ok(0) }
+//!   fn bar(&self) -> Result<u32, ()> { Ok(1) }
+//! }
+//!
+//! struct Wrapper { inner: Inner }
+//!
+//! impl Wrapper {
+//!   delegate! {
+//!     #[unwrap]
+//!     to self.inner {
+//!       fn foo(&self) -> u32; // calls self.inner.foo().unwrap()
+//!       fn bar(&self) -> u32; // calls self.inner.bar().unwrap()
+//!     }
+//!   }
+//! }
+//! ```
 //! - Specify expressions in the signature that will be used as delegated arguments
 //! ```rust
 //! use delegate::delegate;
@@ -256,7 +280,10 @@ extern crate proc_macro;
 use proc_macro::TokenStream;
 use proc_macro2::Ident;
 
-use crate::attributes::{parse_attributes, ReturnExpression};
+use crate::attributes::{
+    combine_attributes, parse_method_attributes, parse_segment_attributes, ReturnExpression,
+    SegmentAttributes,
+};
 use quote::{quote, ToTokens};
 use syn::parse::ParseStream;
 use syn::spanned::Spanned;
@@ -567,10 +594,14 @@ impl syn::parse::Parse for DelegatedMethod {
 struct DelegatedSegment {
     delegator: syn::Expr,
     methods: Vec<DelegatedMethod>,
+    segment_attrs: SegmentAttributes,
 }
 
 impl syn::parse::Parse for DelegatedSegment {
     fn parse(input: ParseStream) -> Result<Self, Error> {
+        let attributes = input.call(syn::Attribute::parse_outer)?;
+        let segment_attrs = parse_segment_attributes(&attributes);
+
         if let Ok(keyword) = input.parse::<kw::target>() {
             return Err(Error::new(keyword.span(), "You are using the old `target` expression, which is deprecated. Please replace `target` with `to`."));
         } else {
@@ -586,7 +617,11 @@ impl syn::parse::Parse for DelegatedSegment {
                 methods.push(content.parse::<DelegatedMethod>().unwrap());
             }
 
-            Ok(DelegatedSegment { delegator, methods })
+            Ok(DelegatedSegment {
+                delegator,
+                methods,
+                segment_attrs,
+            })
         })
     }
 }
@@ -641,7 +676,8 @@ pub fn delegate(tokens: TokenStream) -> TokenStream {
             let input = &method.method;
             let signature = &input.sig;
 
-            let attributes = parse_attributes(&method.attributes, input);
+            let attributes = parse_method_attributes(&method.attributes, input);
+            let attributes = combine_attributes(attributes, &delegator.segment_attrs);
 
             if input.default.is_some() {
                 panic!(
@@ -676,7 +712,11 @@ pub fn delegate(tokens: TokenStream) -> TokenStream {
             } else {
                 quote::quote! { #delegator_attribute.#name(#(#args),*) }
             };
-            let mut body = if attributes.generate_await {
+
+            let generate_await = attributes
+                .generate_await
+                .unwrap_or_else(|| method.method.sig.asyncness.is_some());
+            let mut body = if generate_await {
                 quote::quote! { #body.await }
             } else {
                 body
