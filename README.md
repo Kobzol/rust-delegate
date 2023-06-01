@@ -233,6 +233,22 @@ impl MultiStack {
 
 - Inserts `#[inline(always)]` automatically (unless you specify `#[inline]`
   manually on the method)
+- You can use an attribute on a whole segment to automatically apply it to all methods in that segment:
+
+```rust
+struct Wrapper { inner: Inner }
+
+impl Wrapper {
+ delegate! {
+   #[unwrap]
+   to self.inner {
+     fn foo(&self) -> u32; // calls self.inner.foo().unwrap()
+     fn bar(&self) -> u32; // calls self.inner.bar().unwrap()
+   }
+ }
+}
+```
+- 
 - Specify expressions in the signature that will be used as delegated arguments
 
 ```rust

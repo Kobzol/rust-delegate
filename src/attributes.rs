@@ -1,3 +1,4 @@
+use std::collections::VecDeque;
 use syn::parse::ParseStream;
 use syn::{Attribute, Error, Meta, TypePath};
 
@@ -55,37 +56,29 @@ impl syn::parse::Parse for IntoAttribute {
     }
 }
 
+#[derive(Clone)]
 pub enum ReturnExpression {
     Into(Option<TypePath>),
     TryInto,
     Unwrap,
 }
 
-pub struct ParsedAttributes<'a> {
-    pub attributes: Vec<&'a Attribute>,
-    pub target_method: Option<syn::Ident>,
-    pub expressions: Vec<ReturnExpression>,
-    pub generate_await: bool,
+enum ParsedAttribute {
+    ReturnExpression(ReturnExpression),
+    Await(bool),
+    TargetMethod(syn::Ident),
 }
 
-/// Iterates through the attributes of a method and filters special attributes.
-/// - call => sets the name of the target method to call
-/// - into => generates a `into()` call after the delegated expression
-/// - try_into => generates a `try_into()` call after the delegated expression
-/// - await => generates an `.await` expression after the delegated expression
-/// - unwrap => generates a `unwrap()` call after the delegated expression
-pub fn parse_attributes<'a>(
-    attrs: &'a [syn::Attribute],
-    method: &syn::TraitItemMethod,
-) -> ParsedAttributes<'a> {
-    let mut target_method: Option<syn::Ident> = None;
-    let mut expressions: Vec<ReturnExpression> = vec![];
-    let mut generate_await: Option<bool> = None;
-
-    let attrs: Vec<&Attribute> = attrs
+fn parse_attributes(
+    attrs: &[Attribute],
+) -> (
+    impl Iterator<Item = ParsedAttribute> + '_,
+    impl Iterator<Item = &Attribute>,
+) {
+    let (parsed, other): (Vec<_>, Vec<_>) = attrs
         .iter()
-        .filter(|attribute| {
-            if let syn::AttrStyle::Outer = attribute.style {
+        .map(|attribute| {
+            let parsed = if let syn::AttrStyle::Outer = attribute.style {
                 let name = attribute
                     .path
                     .get_ident()
@@ -95,19 +88,13 @@ pub fn parse_attributes<'a>(
                     "call" => {
                         let target =
                             syn::parse2::<CallMethodAttribute>(attribute.tokens.clone()).unwrap();
-                        if target_method.is_some() {
-                            panic!(
-                                "Multiple call attributes specified for {}",
-                                method.sig.ident
-                            )
-                        }
-                        target_method = Some(target.name);
-                        return false;
+                        Some(ParsedAttribute::TargetMethod(target.name))
                     }
                     "into" => {
                         let into = syn::parse2::<IntoAttribute>(attribute.tokens.clone()).unwrap();
-                        expressions.push(ReturnExpression::Into(into.type_path));
-                        return false;
+                        Some(ParsedAttribute::ReturnExpression(ReturnExpression::Into(
+                            into.type_path,
+                        )))
                     }
                     "try_into" => {
                         let meta = attribute
@@ -125,38 +112,143 @@ pub fn parse_attributes<'a>(
                                 }
                             }
                         }
-                        expressions.push(ReturnExpression::TryInto);
-                        return false;
+                        Some(ParsedAttribute::ReturnExpression(ReturnExpression::TryInto))
                     }
-                    "unwrap" => {
-                        expressions.push(ReturnExpression::Unwrap);
-                        return false;
-                    }
+                    "unwrap" => Some(ParsedAttribute::ReturnExpression(ReturnExpression::Unwrap)),
                     "await" => {
-                        if generate_await.is_some() {
-                            panic!(
-                                "Multiple `await` attributes specified for {}",
-                                method.sig.ident
-                            )
-                        }
                         let generate =
                             syn::parse2::<GenerateAwaitAttribute>(attribute.tokens.clone())
                                 .unwrap();
-                        generate_await = Some(generate.literal.value);
-                        return false;
+                        Some(ParsedAttribute::Await(generate.literal.value))
                     }
-                    _ => {}
+                    _ => None,
+                }
+            } else {
+                None
+            };
+
+            (parsed, attribute)
+        })
+        .partition(|(parsed, _)| parsed.is_some());
+    (
+        parsed.into_iter().map(|(parsed, _)| parsed.unwrap()),
+        other.into_iter().map(|(_, attr)| attr),
+    )
+}
+
+pub struct MethodAttributes<'a> {
+    pub attributes: Vec<&'a Attribute>,
+    pub target_method: Option<syn::Ident>,
+    pub expressions: VecDeque<ReturnExpression>,
+    pub generate_await: Option<bool>,
+}
+
+/// Iterates through the attributes of a method and filters special attributes.
+/// - call => sets the name of the target method to call
+/// - into => generates a `into()` call after the delegated expression
+/// - try_into => generates a `try_into()` call after the delegated expression
+/// - await => generates an `.await` expression after the delegated expression
+/// - unwrap => generates a `unwrap()` call after the delegated expression
+pub fn parse_method_attributes<'a>(
+    attrs: &'a [syn::Attribute],
+    method: &syn::TraitItemMethod,
+) -> MethodAttributes<'a> {
+    let mut target_method: Option<syn::Ident> = None;
+    let mut expressions: Vec<ReturnExpression> = vec![];
+    let mut generate_await: Option<bool> = None;
+
+    let (parsed, other) = parse_attributes(attrs);
+    for attr in parsed {
+        match attr {
+            ParsedAttribute::ReturnExpression(expr) => expressions.push(expr),
+            ParsedAttribute::Await(value) => {
+                if generate_await.is_some() {
+                    panic!(
+                        "Multiple `await` attributes specified for {}",
+                        method.sig.ident
+                    )
+                }
+                generate_await = Some(value);
+            }
+            ParsedAttribute::TargetMethod(target) => {
+                if target_method.is_some() {
+                    panic!(
+                        "Multiple call attributes specified for {}",
+                        method.sig.ident
+                    )
+                }
+                target_method = Some(target);
+            }
+        }
+    }
+
+    MethodAttributes {
+        attributes: other.into_iter().collect(),
+        target_method,
+        generate_await,
+        expressions: expressions.into(),
+    }
+}
+
+pub struct SegmentAttributes {
+    pub expressions: Vec<ReturnExpression>,
+    pub generate_await: Option<bool>,
+}
+
+pub fn parse_segment_attributes(attrs: &[syn::Attribute]) -> SegmentAttributes {
+    let mut expressions: Vec<ReturnExpression> = vec![];
+    let mut generate_await: Option<bool> = None;
+
+    let (parsed, mut other) = parse_attributes(attrs);
+    if other.next().is_some() {
+        panic!("Only return expression attributes can be used on a segment (into, try_into, unwrap or await).");
+    }
+
+    for attribute in parsed {
+        match attribute {
+            ParsedAttribute::ReturnExpression(expr) => expressions.push(expr),
+            ParsedAttribute::Await(value) => {
+                if generate_await.is_some() {
+                    panic!("Multiple `await` attributes specified for segment",)
+                }
+                generate_await = Some(value);
+            }
+            ParsedAttribute::TargetMethod(_) => {
+                panic!("Call attribute cannot be specified on a `to <expr>` segment.");
+            }
+        }
+    }
+    SegmentAttributes {
+        expressions,
+        generate_await,
+    }
+}
+
+/// Applies default values from the segment and adds them to the method attributes.
+pub fn combine_attributes<'a>(
+    mut method_attrs: MethodAttributes<'a>,
+    segment_attrs: &SegmentAttributes,
+) -> MethodAttributes<'a> {
+    if method_attrs.generate_await.is_none() {
+        method_attrs.generate_await = segment_attrs.generate_await;
+    }
+
+    for expr in &segment_attrs.expressions {
+        match expr {
+            ReturnExpression::Into(path) => {
+                if !method_attrs
+                    .expressions
+                    .iter()
+                    .any(|expr| matches!(expr, ReturnExpression::Into(_)))
+                {
+                    method_attrs
+                        .expressions
+                        .push_front(ReturnExpression::Into(path.clone()));
                 }
             }
-
-            true
-        })
-        .collect();
-
-    ParsedAttributes {
-        attributes: attrs,
-        target_method,
-        generate_await: generate_await.unwrap_or_else(|| method.sig.asyncness.is_some()),
-        expressions,
+            _ => method_attrs.expressions.push_front(expr.clone()),
+        }
     }
+
+    method_attrs
 }
