@@ -1,4 +1,5 @@
 use std::collections::VecDeque;
+
 use syn::parse::ParseStream;
 use syn::{Attribute, Error, Meta, TypePath};
 
@@ -56,6 +57,26 @@ impl syn::parse::Parse for IntoAttribute {
     }
 }
 
+pub struct TraitTarget {
+    type_path: TypePath,
+}
+
+impl syn::parse::Parse for TraitTarget {
+    fn parse(input: ParseStream) -> Result<Self, Error> {
+        let content;
+        syn::parenthesized!(content in input);
+
+        let type_path: TypePath = content.parse().map_err(|error| {
+            Error::new(
+                input.span(),
+                format!("{error}\nExpected trait path, e.g. #[through(foo::MyTrait)]"),
+            )
+        })?;
+
+        Ok(TraitTarget { type_path })
+    }
+}
+
 #[derive(Clone)]
 pub enum ReturnExpression {
     Into(Option<TypePath>),
@@ -67,6 +88,7 @@ enum ParsedAttribute {
     ReturnExpression(ReturnExpression),
     Await(bool),
     TargetMethod(syn::Ident),
+    ThroughTrait(TraitTarget),
 }
 
 fn parse_attributes(
@@ -86,12 +108,13 @@ fn parse_attributes(
                     .unwrap_or_default();
                 match name.as_str() {
                     "call" => {
-                        let target =
-                            syn::parse2::<CallMethodAttribute>(attribute.tokens.clone()).unwrap();
+                        let target = syn::parse2::<CallMethodAttribute>(attribute.tokens.clone())
+                            .expect("Cannot parse `call` attribute");
                         Some(ParsedAttribute::TargetMethod(target.name))
                     }
                     "into" => {
-                        let into = syn::parse2::<IntoAttribute>(attribute.tokens.clone()).unwrap();
+                        let into = syn::parse2::<IntoAttribute>(attribute.tokens.clone())
+                            .expect("Cannot parse `into` attribute");
                         Some(ParsedAttribute::ReturnExpression(ReturnExpression::Into(
                             into.type_path,
                         )))
@@ -118,9 +141,13 @@ fn parse_attributes(
                     "await" => {
                         let generate =
                             syn::parse2::<GenerateAwaitAttribute>(attribute.tokens.clone())
-                                .unwrap();
+                                .expect("Cannot parse `await` attribute");
                         Some(ParsedAttribute::Await(generate.literal.value))
                     }
+                    "through" => Some(ParsedAttribute::ThroughTrait(
+                        syn::parse2::<TraitTarget>(attribute.tokens.clone())
+                            .expect("Cannot parse `through` attribute"),
+                    )),
                     _ => None,
                 }
             } else {
@@ -141,6 +168,7 @@ pub struct MethodAttributes<'a> {
     pub target_method: Option<syn::Ident>,
     pub expressions: VecDeque<ReturnExpression>,
     pub generate_await: Option<bool>,
+    pub target_trait: Option<TypePath>,
 }
 
 /// Iterates through the attributes of a method and filters special attributes.
@@ -149,13 +177,15 @@ pub struct MethodAttributes<'a> {
 /// - try_into => generates a `try_into()` call after the delegated expression
 /// - await => generates an `.await` expression after the delegated expression
 /// - unwrap => generates a `unwrap()` call after the delegated expression
+/// - throuhg => generates a UFCS call (`Target::method(&<expr>, ...)`) around the delegated expression
 pub fn parse_method_attributes<'a>(
-    attrs: &'a [syn::Attribute],
+    attrs: &'a [Attribute],
     method: &syn::TraitItemMethod,
 ) -> MethodAttributes<'a> {
     let mut target_method: Option<syn::Ident> = None;
     let mut expressions: Vec<ReturnExpression> = vec![];
     let mut generate_await: Option<bool> = None;
+    let mut target_trait: Option<TraitTarget> = None;
 
     let (parsed, other) = parse_attributes(attrs);
     for attr in parsed {
@@ -179,6 +209,15 @@ pub fn parse_method_attributes<'a>(
                 }
                 target_method = Some(target);
             }
+            ParsedAttribute::ThroughTrait(target) => {
+                if target_trait.is_some() {
+                    panic!(
+                        "Multiple through attributes specified for {}",
+                        method.sig.ident
+                    )
+                }
+                target_trait = Some(target);
+            }
         }
     }
 
@@ -187,17 +226,20 @@ pub fn parse_method_attributes<'a>(
         target_method,
         generate_await,
         expressions: expressions.into(),
+        target_trait: target_trait.map(|t| t.type_path),
     }
 }
 
 pub struct SegmentAttributes {
     pub expressions: Vec<ReturnExpression>,
     pub generate_await: Option<bool>,
+    pub target_trait: Option<TypePath>,
 }
 
-pub fn parse_segment_attributes(attrs: &[syn::Attribute]) -> SegmentAttributes {
+pub fn parse_segment_attributes(attrs: &[Attribute]) -> SegmentAttributes {
     let mut expressions: Vec<ReturnExpression> = vec![];
     let mut generate_await: Option<bool> = None;
+    let mut target_trait: Option<TraitTarget> = None;
 
     let (parsed, mut other) = parse_attributes(attrs);
     if other.next().is_some() {
@@ -209,9 +251,15 @@ pub fn parse_segment_attributes(attrs: &[syn::Attribute]) -> SegmentAttributes {
             ParsedAttribute::ReturnExpression(expr) => expressions.push(expr),
             ParsedAttribute::Await(value) => {
                 if generate_await.is_some() {
-                    panic!("Multiple `await` attributes specified for segment",)
+                    panic!("Multiple `await` attributes specified for segment");
                 }
                 generate_await = Some(value);
+            }
+            ParsedAttribute::ThroughTrait(target) => {
+                if target_trait.is_some() {
+                    panic!("Multiple `through` attributes specified for segment");
+                }
+                target_trait = Some(target);
             }
             ParsedAttribute::TargetMethod(_) => {
                 panic!("Call attribute cannot be specified on a `to <expr>` segment.");
@@ -221,6 +269,7 @@ pub fn parse_segment_attributes(attrs: &[syn::Attribute]) -> SegmentAttributes {
     SegmentAttributes {
         expressions,
         generate_await,
+        target_trait: target_trait.map(|t| t.type_path),
     }
 }
 
@@ -231,6 +280,10 @@ pub fn combine_attributes<'a>(
 ) -> MethodAttributes<'a> {
     if method_attrs.generate_await.is_none() {
         method_attrs.generate_await = segment_attrs.generate_await;
+    }
+
+    if method_attrs.target_trait.is_none() {
+        method_attrs.target_trait = segment_attrs.target_trait.clone();
     }
 
     for expr in &segment_attrs.expressions {

@@ -10,11 +10,22 @@ delegate! {
   }
 }
 ```
-- Add new `#[unwrap]` expression modifier. Adding it on top of a delegated method will cause the generated
+- Add new `#[unwrap]` method modifier. Adding it on top of a delegated method will cause the generated
 code to `.unwrap()` the result.
 ```rust
 #[unwrap]
 fn foo(&self) -> u32;  // foo().unwrap()
+```
+- Add new `#[through(<trait>)]` method modifier. Adding it on top of a delegated method will cause the generated
+  code to call the method through the provided trait using [UFCS](https://doc.rust-lang.org/reference/expressions/call-expr.html#disambiguating-function-calls).
+```rust
+#[through(MyTrait)]
+delegate! {
+  to &self.inner {
+    #[through(MyTrait)]
+    fn foo(&self) -> u32;  // MyTrait::foo(&self.inner)
+  }
+}
 ```
 - Removed `#[try_into(unwrap)]`. It can now be replaced with the combination of `#[try_into]` and `#[unwrap]`:
 ```rust

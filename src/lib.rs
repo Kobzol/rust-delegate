@@ -272,23 +272,52 @@
 //!     }
 //! }
 //! ```
-
-mod attributes;
+//! - Specify a trait through which will the delegated method be called
+//! (using [UFCS](https://doc.rust-lang.org/reference/expressions/call-expr.html#disambiguating-function-calls).
+//! ```rust
+//! use delegate::delegate;
+//!
+//! struct InnerType {}
+//! impl InnerType {
+//!     
+//! }
+//!
+//! trait MyTrait {
+//!   fn foo(&self);
+//! }
+//! impl MyTrait for InnerType {
+//!   fn foo(&self) {}
+//! }
+//!
+//! struct Wrapper(InnerType);
+//! impl Wrapper {
+//!     delegate! {
+//!         to &self.0 {
+//!             // Calls `MyTrait::foo(&self.0)`
+//!             #[through(MyTrait)]
+//!             pub fn foo(&self);
+//!         }
+//!     }
+//! }
+//! ```
 
 extern crate proc_macro;
 
 use proc_macro::TokenStream;
-use proc_macro2::Ident;
 
-use crate::attributes::{
-    combine_attributes, parse_method_attributes, parse_segment_attributes, ReturnExpression,
-    SegmentAttributes,
-};
+use proc_macro2::Ident;
 use quote::{quote, ToTokens};
 use syn::parse::ParseStream;
 use syn::spanned::Spanned;
 use syn::visit_mut::VisitMut;
 use syn::{parse_quote, Error, ExprMethodCall, Meta};
+
+use crate::attributes::{
+    combine_attributes, parse_method_attributes, parse_segment_attributes, ReturnExpression,
+    SegmentAttributes,
+};
+
+mod attributes;
 
 mod kw {
     syn::custom_keyword!(to);
@@ -373,7 +402,7 @@ struct DelegatedMethod {
 // argument used to call the delegate function: omit receiver, extract an
 // identifier from a typed input parameter (and wrap it in an `Expr`).
 fn parse_input_into_argument_expression(
-    function_name: &syn::Ident,
+    function_name: &Ident,
     input: &syn::FnArg,
 ) -> Option<syn::Expr> {
     match input {
@@ -614,7 +643,11 @@ impl syn::parse::Parse for DelegatedSegment {
 
             let mut methods = vec![];
             while !content.is_empty() {
-                methods.push(content.parse::<DelegatedMethod>().unwrap());
+                methods.push(
+                    content
+                        .parse::<DelegatedMethod>()
+                        .expect("Cannot parse delegated method"),
+                );
             }
 
             Ok(DelegatedSegment {
@@ -709,6 +742,8 @@ pub fn delegate(tokens: TokenStream) -> TokenStream {
                 }
                 .visit_expr_match_mut(&mut expr_match);
                 expr_match.into_token_stream()
+            } else if let Some(target_trait) = attributes.target_trait {
+                quote::quote! { #target_trait::#name(#delegator_attribute, #(#args),*) }
             } else {
                 quote::quote! { #delegator_attribute.#name(#(#args),*) }
             };
