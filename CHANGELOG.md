@@ -1,4 +1,4 @@
-# Dev
+# 0.10.0 (29. 6. 2023)
 - Allow specifying certain attributes (e.g. `#[into]` or `#[unwrap]`) on delegated segments.
 The attribute will then be applied to all methods in that segment (unless it is overwritten on the method itself).
 ```rust
