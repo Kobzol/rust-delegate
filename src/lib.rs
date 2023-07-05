@@ -340,8 +340,7 @@ enum DelegatedInput {
 }
 
 fn get_argument_modifier(attribute: syn::Attribute) -> Result<ArgumentModifier, Error> {
-    let meta = attribute.parse_meta()?;
-    if let Meta::Path(mut path) = meta {
+    if let Meta::Path(mut path) = attribute.meta {
         if path.segments.len() == 1 {
             let segment = path.segments.pop().unwrap();
             if segment.value().arguments.is_empty() {
@@ -357,7 +356,7 @@ fn get_argument_modifier(attribute: syn::Attribute) -> Result<ArgumentModifier, 
         }
     };
 
-    panic!("The attribute argument has to be `from` or `as_ref`, like this: `#[from] a: u32`.")
+    panic!("The attribute argument has to be `into` or `as_ref`, like this: `#[into] a: u32`.")
 }
 
 impl syn::parse::Parse for DelegatedInput {
@@ -370,7 +369,7 @@ impl syn::parse::Parse for DelegatedInput {
             Ok(Self::Argument(expression))
         } else {
             let (input, modifier) = if lookahead.peek(syn::token::Pound) {
-                let mut attributes = input.call(syn::Attribute::parse_outer)?;
+                let mut attributes = input.call(tolerant_outer_attributes)?;
                 if attributes.len() > 1 {
                     panic!("You can specify at most a single attribute for each parameter in a delegated method");
                 }
@@ -392,7 +391,7 @@ impl syn::parse::Parse for DelegatedInput {
 }
 
 struct DelegatedMethod {
-    method: syn::TraitItemMethod,
+    method: syn::TraitItemFn,
     attributes: Vec<syn::Attribute>,
     visibility: syn::Visibility,
     arguments: syn::punctuated::Punctuated<syn::Expr, syn::Token![,]>,
@@ -451,7 +450,7 @@ fn parse_input_into_argument_expression(
 
 impl syn::parse::Parse for DelegatedMethod {
     fn parse(input: ParseStream) -> Result<Self, Error> {
-        let attributes = input.call(syn::Attribute::parse_outer)?;
+        let attributes = input.call(tolerant_outer_attributes)?;
         let visibility = input.call(syn::Visibility::parse)?;
 
         // Unchanged from Parse from TraitItemMethod
@@ -475,8 +474,7 @@ impl syn::parse::Parse for DelegatedMethod {
         // retrieve the expressions inside of the brackets as well as variable
         // identifiers of ordinary inputs. The arguments must preserve the order
         // of the inputs.
-        let delegated_inputs =
-            content.parse_terminated::<DelegatedInput, syn::Token![,]>(DelegatedInput::parse)?;
+        let delegated_inputs = content.parse_terminated(DelegatedInput::parse, syn::Token![,])?;
         let mut inputs: syn::punctuated::Punctuated<syn::FnArg, syn::Token![,]> =
             syn::punctuated::Punctuated::new();
         let mut arguments: syn::punctuated::Punctuated<syn::Expr, syn::Token![,]> =
@@ -601,7 +599,7 @@ impl syn::parse::Parse for DelegatedMethod {
         };
 
         // This needs to be populated from scratch because of the signature above.
-        let method = syn::TraitItemMethod {
+        let method = syn::TraitItemFn {
             // All attributes are attached to `DelegatedMethod`, since they
             // presumably pertain to the process of delegation, not the
             // signature of the delegator.
@@ -628,7 +626,7 @@ struct DelegatedSegment {
 
 impl syn::parse::Parse for DelegatedSegment {
     fn parse(input: ParseStream) -> Result<Self, Error> {
-        let attributes = input.call(syn::Attribute::parse_outer)?;
+        let attributes = input.call(tolerant_outer_attributes)?;
         let segment_attrs = parse_segment_attributes(&attributes);
 
         if let Ok(keyword) = input.parse::<kw::target>() {
@@ -678,7 +676,7 @@ impl syn::parse::Parse for DelegationBlock {
 fn has_inline_attribute(attrs: &[&syn::Attribute]) -> bool {
     attrs.iter().any(|attr| {
         if let syn::AttrStyle::Outer = attr.style {
-            attr.path.is_ident("inline")
+            attr.path().is_ident("inline")
         } else {
             false
         }
@@ -797,4 +795,88 @@ pub fn delegate(tokens: TokenStream) -> TokenStream {
         #(#sections)*
     };
     result.into()
+}
+
+// we cannot use `Attributes::parse_outer` directly, because it does not allow keywords to appear
+// in meta path positions, i.e., it does not accept `#[await(true)]`.
+// related issue: https://github.com/dtolnay/syn/issues/1458
+fn tolerant_outer_attributes(input: ParseStream) -> syn::Result<Vec<syn::Attribute>> {
+    use proc_macro2::{Delimiter, TokenTree};
+    use syn::{
+        bracketed,
+        ext::IdentExt,
+        parse::discouraged::Speculative,
+        token::{Brace, Bracket, Paren},
+        AttrStyle, Attribute, Expr, ExprLit, Lit, MacroDelimiter, MetaList, MetaNameValue, Path,
+        Result, Token,
+    };
+
+    fn tolerant_attr(input: ParseStream) -> Result<Attribute> {
+        let content;
+        Ok(Attribute {
+            pound_token: input.parse()?,
+            style: AttrStyle::Outer,
+            bracket_token: bracketed!(content in input),
+            meta: content.call(tolerant_meta)?,
+        })
+    }
+
+    // adapted from `impl Parse for Meta`
+    fn tolerant_meta(input: ParseStream) -> Result<Meta> {
+        let path = Path::from(input.call(Ident::parse_any)?);
+        if input.peek(Paren) || input.peek(Bracket) || input.peek(Brace) {
+            // adapted from the private `syn::attr::parse_meta_after_path`
+            input.step(|cursor| {
+                if let Some((TokenTree::Group(g), rest)) = cursor.token_tree() {
+                    let span = g.delim_span();
+                    let delimiter = match g.delimiter() {
+                        Delimiter::Parenthesis => MacroDelimiter::Paren(Paren(span)),
+                        Delimiter::Brace => MacroDelimiter::Brace(Brace(span)),
+                        Delimiter::Bracket => MacroDelimiter::Bracket(Bracket(span)),
+                        Delimiter::None => {
+                            return Err(cursor.error("expected delimiter"));
+                        }
+                    };
+                    Ok((
+                        Meta::List(MetaList {
+                            path,
+                            delimiter,
+                            tokens: g.stream(),
+                        }),
+                        rest,
+                    ))
+                } else {
+                    Err(cursor.error("expected delimiter"))
+                }
+            })
+        } else if input.peek(Token![=]) {
+            // adapted from the private `syn::attr::parse_meta_name_value_after_path`
+            let eq_token = input.parse()?;
+            let ahead = input.fork();
+            let value = match ahead.parse::<Option<Lit>>()? {
+                // this branch is probably for speeding up the parsing for doc comments etc.
+                Some(lit) if ahead.is_empty() => {
+                    input.advance_to(&ahead);
+                    Expr::Lit(ExprLit {
+                        attrs: Vec::new(),
+                        lit,
+                    })
+                }
+                _ => input.parse()?,
+            };
+            Ok(Meta::NameValue(MetaNameValue {
+                path,
+                eq_token,
+                value,
+            }))
+        } else {
+            Ok(Meta::Path(path))
+        }
+    }
+
+    let mut attrs = Vec::new();
+    while input.peek(Token![#]) {
+        attrs.push(input.call(tolerant_attr)?);
+    }
+    Ok(attrs)
 }

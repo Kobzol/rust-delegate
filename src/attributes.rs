@@ -9,10 +9,8 @@ struct CallMethodAttribute {
 
 impl syn::parse::Parse for CallMethodAttribute {
     fn parse(input: ParseStream) -> Result<Self, Error> {
-        let content;
-        syn::parenthesized!(content in input);
         Ok(CallMethodAttribute {
-            name: content.parse()?,
+            name: input.parse()?,
         })
     }
 }
@@ -23,10 +21,8 @@ struct GenerateAwaitAttribute {
 
 impl syn::parse::Parse for GenerateAwaitAttribute {
     fn parse(input: ParseStream) -> Result<Self, Error> {
-        let content;
-        syn::parenthesized!(content in input);
         Ok(GenerateAwaitAttribute {
-            literal: content.parse()?,
+            literal: input.parse()?,
         })
     }
 }
@@ -37,23 +33,16 @@ struct IntoAttribute {
 
 impl syn::parse::Parse for IntoAttribute {
     fn parse(input: ParseStream) -> Result<Self, Error> {
-        if input.peek(syn::token::Paren) {
-            let content;
-            syn::parenthesized!(content in input);
+        let type_path: TypePath = input.parse().map_err(|error| {
+            Error::new(
+                input.span(),
+                format!("{error}\nExpected type name, e.g. #[into(u32)]"),
+            )
+        })?;
 
-            let type_path: TypePath = content.parse().map_err(|error| {
-                Error::new(
-                    input.span(),
-                    format!("{error}\nExpected type name, e.g. #[into(u32)]"),
-                )
-            })?;
-
-            Ok(IntoAttribute {
-                type_path: Some(type_path),
-            })
-        } else {
-            Ok(IntoAttribute { type_path: None })
-        }
+        Ok(IntoAttribute {
+            type_path: Some(type_path),
+        })
     }
 }
 
@@ -63,10 +52,7 @@ pub struct TraitTarget {
 
 impl syn::parse::Parse for TraitTarget {
     fn parse(input: ParseStream) -> Result<Self, Error> {
-        let content;
-        syn::parenthesized!(content in input);
-
-        let type_path: TypePath = content.parse().map_err(|error| {
+        let type_path: TypePath = input.parse().map_err(|error| {
             Error::new(
                 input.span(),
                 format!("{error}\nExpected trait path, e.g. #[through(foo::MyTrait)]"),
@@ -102,50 +88,55 @@ fn parse_attributes(
         .map(|attribute| {
             let parsed = if let syn::AttrStyle::Outer = attribute.style {
                 let name = attribute
-                    .path
+                    .path()
                     .get_ident()
                     .map(|i| i.to_string())
                     .unwrap_or_default();
                 match name.as_str() {
                     "call" => {
-                        let target = syn::parse2::<CallMethodAttribute>(attribute.tokens.clone())
+                        let target = attribute
+                            .parse_args::<CallMethodAttribute>()
                             .expect("Cannot parse `call` attribute");
                         Some(ParsedAttribute::TargetMethod(target.name))
                     }
                     "into" => {
-                        let into = syn::parse2::<IntoAttribute>(attribute.tokens.clone())
-                            .expect("Cannot parse `into` attribute");
+                        let into = match &attribute.meta {
+                            Meta::NameValue(_) => {
+                                panic!("Cannot parse `into` attribute: expected parentheses")
+                            }
+                            Meta::Path(_) => IntoAttribute { type_path: None },
+                            Meta::List(meta) => meta
+                                .parse_args::<IntoAttribute>()
+                                .expect("Cannot parse `into` attribute"),
+                        };
                         Some(ParsedAttribute::ReturnExpression(ReturnExpression::Into(
                             into.type_path,
                         )))
                     }
                     "try_into" => {
-                        let meta = attribute
-                            .parse_meta()
-                            .expect("Invalid `try_into` arguments");
-
-                        if let Meta::List(list) = meta {
-                            if let Some(syn::NestedMeta::Meta(Meta::Path(path))) =
-                                list.nested.first()
-                            {
-                                if path.is_ident("unwrap") {
+                        if let Meta::List(meta) = &attribute.meta {
+                            meta.parse_nested_meta(|meta| {
+                                if meta.path.is_ident("unwrap") {
                                     panic!(
                                         "Replace #[try_into(unwrap)] with\n#[try_into]\n#[unwrap]",
                                     );
                                 }
-                            }
+                                Ok(())
+                            })
+                            .expect("Invalid `try_into` arguments");
                         }
                         Some(ParsedAttribute::ReturnExpression(ReturnExpression::TryInto))
                     }
                     "unwrap" => Some(ParsedAttribute::ReturnExpression(ReturnExpression::Unwrap)),
                     "await" => {
-                        let generate =
-                            syn::parse2::<GenerateAwaitAttribute>(attribute.tokens.clone())
-                                .expect("Cannot parse `await` attribute");
+                        let generate = attribute
+                            .parse_args::<GenerateAwaitAttribute>()
+                            .expect("Cannot parse `await` attribute");
                         Some(ParsedAttribute::Await(generate.literal.value))
                     }
                     "through" => Some(ParsedAttribute::ThroughTrait(
-                        syn::parse2::<TraitTarget>(attribute.tokens.clone())
+                        attribute
+                            .parse_args::<TraitTarget>()
                             .expect("Cannot parse `through` attribute"),
                     )),
                     _ => None,
@@ -177,10 +168,10 @@ pub struct MethodAttributes<'a> {
 /// - try_into => generates a `try_into()` call after the delegated expression
 /// - await => generates an `.await` expression after the delegated expression
 /// - unwrap => generates a `unwrap()` call after the delegated expression
-/// - throuhg => generates a UFCS call (`Target::method(&<expr>, ...)`) around the delegated expression
+/// - through => generates a UFCS call (`Target::method(&<expr>, ...)`) around the delegated expression
 pub fn parse_method_attributes<'a>(
     attrs: &'a [Attribute],
-    method: &syn::TraitItemMethod,
+    method: &syn::TraitItemFn,
 ) -> MethodAttributes<'a> {
     let mut target_method: Option<syn::Ident> = None;
     let mut expressions: Vec<ReturnExpression> = vec![];
