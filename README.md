@@ -182,6 +182,42 @@ impl Wrapper {
 }
 ```
 
+- Add additional arguments to method
+
+```rust
+struct Inner(u32);
+impl Inner {
+    pub fn new(m: u32) -> Self {
+        // some "very complex" constructing work
+        Self(m)
+    }
+    pub fn method(&self, n: u32) -> u32 {
+        self.0 + n
+    }
+}
+
+struct Wrapper {
+    inner: OnceCell<Inner>,
+}
+
+impl Wrapper {
+    pub fn new() -> Self {
+        Self {
+            inner: OnceCell::new(),
+        }
+    }
+    fn content(&self, val: u32) -> &Inner {
+        self.inner.get_or_init(|| Inner(val))
+    }
+    delegate! {
+        to |k: u32| self.content(k) {
+            // `wrapper.method(k, num)` will call `self.content(k).method(num)`
+            pub fn method(&self, num: u32) -> u32;
+        }
+    }
+}
+```
+
 - Call `await` on async functions
 
 ```rust

@@ -302,6 +302,7 @@
 //! ```
 
 extern crate proc_macro;
+use std::mem;
 
 use proc_macro::TokenStream;
 
@@ -310,7 +311,7 @@ use quote::{quote, ToTokens};
 use syn::parse::ParseStream;
 use syn::spanned::Spanned;
 use syn::visit_mut::VisitMut;
-use syn::{parse_quote, Error, ExprMethodCall, Meta};
+use syn::{parse_quote, Error, ExprMethodCall, FnArg, Meta};
 
 use crate::attributes::{
     combine_attributes, parse_method_attributes, parse_segment_attributes, ReturnExpression,
@@ -702,14 +703,28 @@ pub fn delegate(tokens: TokenStream) -> TokenStream {
     let block: DelegationBlock = syn::parse_macro_input!(tokens);
     let sections = block.segments.iter().map(|delegator| {
         let delegator_attribute = &delegator.delegator;
-
         let functions = delegator.methods.iter().map(|method| {
             let input = &method.method;
-            let signature = &input.sig;
-
+            let mut signature = input.sig.clone();
+            if let syn::Expr::Closure(closure) = delegator_attribute {
+                let additional_input: Vec<FnArg> = closure
+                    .inputs
+                    .iter()
+                    .map(|input| {
+                        if let syn::Pat::Type(pat_type) = input {
+                            syn::parse_quote!(#pat_type)
+                        } else {
+                            unreachable!()
+                        }
+                    })
+                    .collect();
+                let mut origin_inputs = mem::take(&mut signature.inputs).into_iter();
+                signature.inputs.push(origin_inputs.next().unwrap());
+                signature.inputs.extend(additional_input);
+                signature.inputs.extend(origin_inputs);
+            }
             let attributes = parse_method_attributes(&method.attributes, input);
             let attributes = combine_attributes(attributes, &delegator.segment_attrs);
-
             if input.default.is_some() {
                 panic!(
                     "Do not include implementation of delegated functions ({})",
@@ -719,7 +734,6 @@ pub fn delegate(tokens: TokenStream) -> TokenStream {
 
             // Generate an argument vector from Punctuated list.
             let args: Vec<syn::Expr> = method.arguments.clone().into_iter().collect();
-
             let name = match &attributes.target_method {
                 Some(n) => n,
                 None => &input.sig.ident,
@@ -742,6 +756,9 @@ pub fn delegate(tokens: TokenStream) -> TokenStream {
                 }
                 .visit_expr_match_mut(&mut expr_match);
                 expr_match.into_token_stream()
+            } else if let syn::Expr::Closure(closure) = delegator_attribute {
+                let body = &closure.body;
+                quote::quote! { #body.#name(#(#args),*) }
             } else if let Some(target_trait) = attributes.target_trait {
                 quote::quote! { #target_trait::#name(#delegator_attribute, #(#args),*) }
             } else if is_method {
