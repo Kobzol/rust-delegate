@@ -731,6 +731,8 @@ pub fn delegate(tokens: TokenStream) -> TokenStream {
             };
             let visibility = &method.visibility;
 
+            let is_method = method.method.sig.receiver().is_some();
+
             let span = input.span();
             let body = if let syn::Expr::Match(expr_match) = delegator_attribute {
                 let mut expr_match = expr_match.clone();
@@ -742,8 +744,10 @@ pub fn delegate(tokens: TokenStream) -> TokenStream {
                 expr_match.into_token_stream()
             } else if let Some(target_trait) = attributes.target_trait {
                 quote::quote! { #target_trait::#name(#delegator_attribute, #(#args),*) }
-            } else {
+            } else if is_method {
                 quote::quote! { #delegator_attribute.#name(#(#args),*) }
+            } else {
+                quote::quote! { #delegator_attribute::#name(#(#args),*) }
             };
 
             let generate_await = attributes
