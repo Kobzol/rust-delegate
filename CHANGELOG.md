@@ -1,4 +1,22 @@
 # Dev
+- Allow delegating an associated function (not just a method).
+```rust
+struct A {}
+impl A {
+    fn foo(a: u32) -> u32 {
+        a + 1
+    }
+}
+
+struct B;
+impl B {
+    delegate! {
+        to A {
+            fn foo(a: u32) -> u32;
+        }
+    }
+}
+```
 - Allow specifying certain attributes (e.g. `#[into]` or `#[unwrap]`) on delegated segments.
 The attribute will then be applied to all methods in that segment (unless it is overwritten on the method itself).
 ```rust
