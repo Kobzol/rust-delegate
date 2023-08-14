@@ -714,7 +714,9 @@ pub fn delegate(tokens: TokenStream) -> TokenStream {
                         if let syn::Pat::Type(pat_type) = input {
                             syn::parse_quote!(#pat_type)
                         } else {
-                            unreachable!()
+                            panic!(
+                                "Use a type pattern (`a: u32`) for delegation closure arguments"
+                            );
                         }
                     })
                     .collect();
