@@ -311,7 +311,7 @@ use quote::{quote, ToTokens};
 use syn::parse::ParseStream;
 use syn::spanned::Spanned;
 use syn::visit_mut::VisitMut;
-use syn::{parse_quote, Error, ExprMethodCall, FnArg, Meta};
+use syn::{parse_quote, Error, Expr, ExprMethodCall, ExprPath, FnArg, Meta};
 
 use crate::attributes::{
     combine_attributes, parse_method_attributes, parse_segment_attributes, ReturnExpression,
@@ -706,8 +706,9 @@ pub fn delegate(tokens: TokenStream) -> TokenStream {
         let functions = delegator.methods.iter().map(|method| {
             let input = &method.method;
             let mut signature = input.sig.clone();
+            let mut is_associated_method = false;
             if let syn::Expr::Closure(closure) = delegator_attribute {
-                let additional_input: Vec<FnArg> = closure
+                let additional_inputs: Vec<FnArg> = closure
                     .inputs
                     .iter()
                     .map(|input| {
@@ -721,8 +722,26 @@ pub fn delegate(tokens: TokenStream) -> TokenStream {
                     })
                     .collect();
                 let mut origin_inputs = mem::take(&mut signature.inputs).into_iter();
-                signature.inputs.push(origin_inputs.next().unwrap());
-                signature.inputs.extend(additional_input);
+                // When delegating methods, `first_input` should be self or similar receivers
+                // Then we need to move it to first
+                // When delegating associated methods, it may be a trivial argument or does not even exist
+                // We just keep the origin order.
+                let first_input = origin_inputs.next();
+                match first_input {
+                    Some(FnArg::Receiver(receiver)) => {
+                        signature.inputs.push(FnArg::Receiver(receiver));
+                        signature.inputs.extend(additional_inputs);
+                    }
+                    Some(first_input) => {
+                        is_associated_method = true;
+                        signature.inputs.extend(additional_inputs);
+                        signature.inputs.push(first_input);
+                    }
+                    _ => {
+                        is_associated_method = true;
+                        signature.inputs.extend(additional_inputs);
+                    }
+                }
                 signature.inputs.extend(origin_inputs);
             }
             let attributes = parse_method_attributes(&method.attributes, input);
@@ -735,7 +754,25 @@ pub fn delegate(tokens: TokenStream) -> TokenStream {
             }
 
             // Generate an argument vector from Punctuated list.
-            let args: Vec<syn::Expr> = method.arguments.clone().into_iter().collect();
+            let mut args: Vec<syn::Expr> = method.arguments.clone().into_iter().collect();
+            if is_associated_method {
+                let syn::Expr::Closure(closure) = delegator_attribute else {unreachable!()};
+                let additional_inputs: Vec<Expr> = closure
+                    .inputs
+                    .iter()
+                    .map(|input| {
+                        if let syn::Pat::Type(pat_type) = input {
+                            let pat = &pat_type.pat;
+                            syn::parse_quote!(#pat)
+                        } else {
+                            panic!(
+                                "Use a type pattern (`a: u32`) for delegation closure arguments"
+                            );
+                        }
+                    })
+                    .collect();
+                args.extend(additional_inputs.into_iter());
+            }
             let name = match &attributes.target_method {
                 Some(n) => n,
                 None => &input.sig.ident,
@@ -760,7 +797,11 @@ pub fn delegate(tokens: TokenStream) -> TokenStream {
                 expr_match.into_token_stream()
             } else if let syn::Expr::Closure(closure) = delegator_attribute {
                 let body = &closure.body;
-                quote::quote! { #body.#name(#(#args),*) }
+                if is_associated_method {
+                    quote::quote! { #body::#name(#(#args),*) }
+                } else {
+                    quote::quote! { #body.#name(#(#args),*) }
+                }
             } else if let Some(target_trait) = attributes.target_trait {
                 quote::quote! { #target_trait::#name(#delegator_attribute, #(#args),*) }
             } else if is_method {
