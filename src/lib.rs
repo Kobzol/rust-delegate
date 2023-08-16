@@ -311,7 +311,7 @@ use quote::{quote, ToTokens};
 use syn::parse::ParseStream;
 use syn::spanned::Spanned;
 use syn::visit_mut::VisitMut;
-use syn::{parse_quote, Error, Expr, ExprMethodCall, ExprPath, FnArg, Meta};
+use syn::{parse_quote, Error, Expr, ExprMethodCall, FnArg, Meta};
 
 use crate::attributes::{
     combine_attributes, parse_method_attributes, parse_segment_attributes, ReturnExpression,
@@ -702,12 +702,11 @@ impl VisitMut for MatchVisitor {
 pub fn delegate(tokens: TokenStream) -> TokenStream {
     let block: DelegationBlock = syn::parse_macro_input!(tokens);
     let sections = block.segments.iter().map(|delegator| {
-        let delegator_attribute = &delegator.delegator;
+        let mut delegated_expr = &delegator.delegator;
         let functions = delegator.methods.iter().map(|method| {
             let input = &method.method;
             let mut signature = input.sig.clone();
-            let mut is_associated_method = false;
-            if let syn::Expr::Closure(closure) = delegator_attribute {
+            if let Expr::Closure(closure) = delegated_expr {
                 let additional_inputs: Vec<FnArg> = closure
                     .inputs
                     .iter()
@@ -733,12 +732,10 @@ pub fn delegate(tokens: TokenStream) -> TokenStream {
                         signature.inputs.extend(additional_inputs);
                     }
                     Some(first_input) => {
-                        is_associated_method = true;
                         signature.inputs.extend(additional_inputs);
                         signature.inputs.push(first_input);
                     }
                     _ => {
-                        is_associated_method = true;
                         signature.inputs.extend(additional_inputs);
                     }
                 }
@@ -754,25 +751,7 @@ pub fn delegate(tokens: TokenStream) -> TokenStream {
             }
 
             // Generate an argument vector from Punctuated list.
-            let mut args: Vec<syn::Expr> = method.arguments.clone().into_iter().collect();
-            if is_associated_method {
-                let syn::Expr::Closure(closure) = delegator_attribute else {unreachable!()};
-                let additional_inputs: Vec<Expr> = closure
-                    .inputs
-                    .iter()
-                    .map(|input| {
-                        if let syn::Pat::Type(pat_type) = input {
-                            let pat = &pat_type.pat;
-                            syn::parse_quote!(#pat)
-                        } else {
-                            panic!(
-                                "Use a type pattern (`a: u32`) for delegation closure arguments"
-                            );
-                        }
-                    })
-                    .collect();
-                args.extend(additional_inputs.into_iter());
-            }
+            let args: Vec<Expr> = method.arguments.clone().into_iter().collect();
             let name = match &attributes.target_method {
                 Some(n) => n,
                 None => &input.sig.ident,
@@ -786,8 +765,13 @@ pub fn delegate(tokens: TokenStream) -> TokenStream {
 
             let is_method = method.method.sig.receiver().is_some();
 
+            // Use the body of a closure (like `|k: u32| <body>`) as the delegation expression
+            if let Expr::Closure(closure) = delegated_expr {
+                delegated_expr = &closure.body;
+            }
+
             let span = input.span();
-            let body = if let syn::Expr::Match(expr_match) = delegator_attribute {
+            let body = if let Expr::Match(expr_match) = delegated_expr {
                 let mut expr_match = expr_match.clone();
                 MatchVisitor {
                     name: name.clone(),
@@ -795,19 +779,12 @@ pub fn delegate(tokens: TokenStream) -> TokenStream {
                 }
                 .visit_expr_match_mut(&mut expr_match);
                 expr_match.into_token_stream()
-            } else if let syn::Expr::Closure(closure) = delegator_attribute {
-                let body = &closure.body;
-                if is_associated_method {
-                    quote::quote! { #body::#name(#(#args),*) }
-                } else {
-                    quote::quote! { #body.#name(#(#args),*) }
-                }
             } else if let Some(target_trait) = attributes.target_trait {
-                quote::quote! { #target_trait::#name(#delegator_attribute, #(#args),*) }
+                quote::quote! { #target_trait::#name(#delegated_expr, #(#args),*) }
             } else if is_method {
-                quote::quote! { #delegator_attribute.#name(#(#args),*) }
+                quote::quote! { #delegated_expr.#name(#(#args),*) }
             } else {
-                quote::quote! { #delegator_attribute::#name(#(#args),*) }
+                quote::quote! { #delegated_expr::#name(#(#args),*) }
             };
 
             let generate_await = attributes
@@ -871,8 +848,8 @@ fn tolerant_outer_attributes(input: ParseStream) -> syn::Result<Vec<syn::Attribu
         ext::IdentExt,
         parse::discouraged::Speculative,
         token::{Brace, Bracket, Paren},
-        AttrStyle, Attribute, Expr, ExprLit, Lit, MacroDelimiter, MetaList, MetaNameValue, Path,
-        Result, Token,
+        AttrStyle, Attribute, ExprLit, Lit, MacroDelimiter, MetaList, MetaNameValue, Path, Result,
+        Token,
     };
 
     fn tolerant_attr(input: ParseStream) -> Result<Attribute> {
