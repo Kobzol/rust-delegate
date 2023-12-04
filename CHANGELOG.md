@@ -1,4 +1,4 @@
-# Dev
+# 0.11.0 (4. 12. 2023)
 - Allow delegating an associated function (not just a method).
 ```rust
 struct A {}
