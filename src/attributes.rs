@@ -304,7 +304,7 @@ pub fn combine_attributes<'a>(
         if !method_attrs
             .attributes
             .iter()
-            .any(|attr| attr.path().get_ident() != other_attr.path().get_ident())
+            .any(|attr| attr.path().get_ident() == other_attr.path().get_ident())
         {
             method_attrs.attributes.push(other_attr);
         }
