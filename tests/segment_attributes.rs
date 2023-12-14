@@ -186,3 +186,28 @@ fn test_segment_through_trait() {
     assert_eq!(bar.f(), 0);
     assert_eq!(bar.f2(), 1);
 }
+
+#[test]
+fn test_segment_inline() {
+    struct Foo;
+
+    impl Foo {
+        fn f(&self) -> u32 {
+            0
+        }
+    }
+
+    struct Bar(Foo);
+
+    impl Bar {
+        delegate! {
+            #[inline(always)]
+            to self.0 {
+                fn f(&self) -> u32;
+            }
+        }
+    }
+
+    let bar = Bar(Foo);
+    assert_eq!(bar.f(), 0);
+}

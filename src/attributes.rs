@@ -225,6 +225,7 @@ pub struct SegmentAttributes {
     pub expressions: Vec<ReturnExpression>,
     pub generate_await: Option<bool>,
     pub target_trait: Option<TypePath>,
+    pub other_attrs: Vec<Attribute>,
 }
 
 pub fn parse_segment_attributes(attrs: &[Attribute]) -> SegmentAttributes {
@@ -232,10 +233,7 @@ pub fn parse_segment_attributes(attrs: &[Attribute]) -> SegmentAttributes {
     let mut generate_await: Option<bool> = None;
     let mut target_trait: Option<TraitTarget> = None;
 
-    let (parsed, mut other) = parse_attributes(attrs);
-    if other.next().is_some() {
-        panic!("Only return expression attributes can be used on a segment (into, try_into, unwrap or await).");
-    }
+    let (parsed, other) = parse_attributes(attrs);
 
     for attribute in parsed {
         match attribute {
@@ -261,23 +259,31 @@ pub fn parse_segment_attributes(attrs: &[Attribute]) -> SegmentAttributes {
         expressions,
         generate_await,
         target_trait: target_trait.map(|t| t.type_path),
+        other_attrs: other.cloned().collect::<Vec<_>>(),
     }
 }
 
 /// Applies default values from the segment and adds them to the method attributes.
 pub fn combine_attributes<'a>(
     mut method_attrs: MethodAttributes<'a>,
-    segment_attrs: &SegmentAttributes,
+    segment_attrs: &'a SegmentAttributes,
 ) -> MethodAttributes<'a> {
+    let SegmentAttributes {
+        expressions,
+        generate_await,
+        target_trait,
+        other_attrs,
+    } = segment_attrs;
+
     if method_attrs.generate_await.is_none() {
-        method_attrs.generate_await = segment_attrs.generate_await;
+        method_attrs.generate_await = *generate_await;
     }
 
     if method_attrs.target_trait.is_none() {
-        method_attrs.target_trait = segment_attrs.target_trait.clone();
+        method_attrs.target_trait = target_trait.clone();
     }
 
-    for expr in &segment_attrs.expressions {
+    for expr in expressions {
         match expr {
             ReturnExpression::Into(path) => {
                 if !method_attrs
@@ -291,6 +297,16 @@ pub fn combine_attributes<'a>(
                 }
             }
             _ => method_attrs.expressions.push_front(expr.clone()),
+        }
+    }
+
+    for other_attr in other_attrs {
+        if !method_attrs
+            .attributes
+            .iter()
+            .any(|attr| attr.path().get_ident() != other_attr.path().get_ident())
+        {
+            method_attrs.attributes.push(other_attr);
         }
     }
 
