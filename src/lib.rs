@@ -759,7 +759,7 @@ pub fn delegate(tokens: TokenStream) -> TokenStream {
             let inline = if has_inline_attribute(&attributes.attributes) {
                 quote!()
             } else {
-                quote! { #[inline(always)] }
+                quote! { #[inline] }
             };
             let visibility = &method.visibility;
 

@@ -8,6 +8,7 @@ impl Foo {
   }
 }
 ```
+- Change the default inlining mode from `#[inline(always)]` to `#[inline]` (https://github.com/Kobzol/rust-delegate/issues/61).
 
 # 0.11.0 (4. 12. 2023)
 - Allow delegating an associated function (not just a method).
