@@ -1,4 +1,7 @@
 # Dev
+- Add new `#[newtype]` function parameter modifier ([#64](https://github.com/Kobzol/rust-delegate/pull/64)).
+  Implemented by [Techassi](https://github.com/Techassi)
+
 - Allow passing arbitrary attributes to delegation segments:
 ```rust
 impl Foo {
