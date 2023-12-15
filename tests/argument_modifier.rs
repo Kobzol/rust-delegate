@@ -38,3 +38,13 @@ where
         }
     }
 }
+
+struct Baz(Vec<u32>);
+
+impl Baz {
+    delegate! {
+        to self.0 {
+            fn extend(&mut self, #[newtype] other: Baz);
+        }
+    }
+}
