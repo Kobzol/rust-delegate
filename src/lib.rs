@@ -248,6 +248,7 @@
 //! Currently, the following modifiers are supported:
 //!     - `#[into]`: Calls `.into()` on the parameter passed to the delegated method.
 //!     - `#[as_ref]`: Calls `.as_ref()` on the parameter passed to the delegated method.
+//!     - `#[newtype]`: Calls `.0` on the parameter passed to the delegated method.
 //! ```rust
 //! use delegate::delegate;
 //!
@@ -311,7 +312,7 @@ use quote::{quote, ToTokens};
 use syn::parse::ParseStream;
 use syn::spanned::Spanned;
 use syn::visit_mut::VisitMut;
-use syn::{parse_quote, Error, Expr, ExprMethodCall, FnArg, Meta};
+use syn::{parse_quote, Error, Expr, ExprField, ExprMethodCall, FnArg, Meta};
 
 use crate::attributes::{
     combine_attributes, parse_method_attributes, parse_segment_attributes, ReturnExpression,
@@ -329,6 +330,7 @@ mod kw {
 enum ArgumentModifier {
     Into,
     AsRef,
+    Newtype,
 }
 
 #[derive(Clone)]
@@ -351,6 +353,7 @@ fn get_argument_modifier(attribute: syn::Attribute) -> Result<ArgumentModifier, 
                 match ident {
                     "into" => return Ok(ArgumentModifier::Into),
                     "as_ref" => return Ok(ArgumentModifier::AsRef),
+                    "newtype" => return Ok(ArgumentModifier::Newtype),
                     _ => (),
                 }
             }
@@ -540,6 +543,15 @@ impl syn::parse::Parse for DelegatedMethod {
                                 })
                             };
 
+                            let field_call = || {
+                                syn::Expr::from(ExprField {
+                                    attrs: vec![],
+                                    base: Box::new(argument.clone()),
+                                    dot_token: Default::default(),
+                                    member: syn::Member::Unnamed(0.into()),
+                                })
+                            };
+
                             match modifier {
                                 ArgumentModifier::Into => {
                                     argument = method_call("into");
@@ -547,6 +559,7 @@ impl syn::parse::Parse for DelegatedMethod {
                                 ArgumentModifier::AsRef => {
                                     argument = method_call("as_ref");
                                 }
+                                ArgumentModifier::Newtype => argument = field_call(),
                             }
                         }
 
