@@ -318,6 +318,7 @@ impl<T> Stack<T> {
   supported:
   - `#[into]`: Calls `.into()` on the parameter passed to the delegated method.
   - `#[as_ref]`: Calls `.as_ref()` on the parameter passed to the delegated method.
+  - `#[newtype]`: Calls `.0` on the parameter passed to the delegated method.
 
   ```rust
   use delegate::delegate;
@@ -339,6 +340,8 @@ impl<T> Stack<T> {
           to self.0 {
               // Calls `self.0.foo(other.into());`
               pub fn foo(&self, #[into] other: Self);
+              // Calls `self.0.bar(other.0);`
+              pub fn bar(&self, #[newtype] other: Self);
           }
       }
   }
