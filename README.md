@@ -318,7 +318,7 @@ impl<T> Stack<T> {
   supported:
   - `#[into]`: Calls `.into()` on the parameter passed to the delegated method.
   - `#[as_ref]`: Calls `.as_ref()` on the parameter passed to the delegated method.
-  - `#[newtype]`: Calls `.0` on the parameter passed to the delegated method.
+  - `#[newtype]`: Accesses the first tuple element (`.0`) of the parameter passed to the delegated method.
 
   ```rust
   use delegate::delegate;
