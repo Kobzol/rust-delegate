@@ -1,4 +1,4 @@
-# Dev
+# 0.12.0 (22. 12. 2023)
 - Add new `#[newtype]` function parameter modifier ([#64](https://github.com/Kobzol/rust-delegate/pull/64)).
   Implemented by [Techassi](https://github.com/Techassi)
 
