@@ -280,7 +280,7 @@ pub fn combine_attributes<'a>(
     }
 
     if method_attrs.target_trait.is_none() {
-        method_attrs.target_trait = target_trait.clone();
+        method_attrs.target_trait.clone_from(target_trait);
     }
 
     for expr in expressions {

@@ -697,17 +697,12 @@ fn has_inline_attribute(attrs: &[&syn::Attribute]) -> bool {
     })
 }
 
-struct MatchVisitor {
-    name: Ident,
-    args: Vec<syn::Expr>,
-}
+struct MatchVisitor<F>(F);
 
-impl VisitMut for MatchVisitor {
+impl<F: Fn(&Expr) -> proc_macro2::TokenStream> VisitMut for MatchVisitor<F> {
     fn visit_arm_mut(&mut self, arm: &mut syn::Arm) {
-        let body = arm.body.clone();
-        let name = &self.name;
-        let args = &self.args;
-        arm.body = parse_quote!( { #body.#name(#(#args),*) });
+        let transformed = self.0(&arm.body);
+        arm.body = parse_quote!(#transformed);
     }
 }
 
@@ -784,55 +779,58 @@ pub fn delegate(tokens: TokenStream) -> TokenStream {
             }
 
             let span = input.span();
-            let body = if let Expr::Match(expr_match) = delegated_expr {
-                let mut expr_match = expr_match.clone();
-                MatchVisitor {
-                    name: name.clone(),
-                    args,
-                }
-                .visit_expr_match_mut(&mut expr_match);
-                expr_match.into_token_stream()
-            } else if let Some(target_trait) = attributes.target_trait {
-                quote::quote! { #target_trait::#name(#delegated_expr, #(#args),*) }
-            } else if is_method {
-                quote::quote! { #delegated_expr.#name(#(#args),*) }
-            } else {
-                quote::quote! { #delegated_expr::#name(#(#args),*) }
-            };
-
             let generate_await = attributes
                 .generate_await
                 .unwrap_or_else(|| method.method.sig.asyncness.is_some());
-            let mut body = if generate_await {
-                quote::quote! { #body.await }
-            } else {
-                body
-            };
 
-            for expression in attributes.expressions {
-                match expression {
-                    ReturnExpression::Into(type_name) => {
-                        body = match type_name {
-                            Some(name) => {
-                                quote::quote! { ::std::convert::Into::<#name>::into(#body) }
-                            }
-                            None => quote::quote! { ::std::convert::Into::into(#body) },
-                        };
-                    }
-                    ReturnExpression::TryInto => {
-                        body = quote::quote! { ::std::convert::TryInto::try_into(#body) };
-                    }
-                    ReturnExpression::Unwrap => {
-                        body = quote::quote! { #body.unwrap() };
+            let modify_expr = |expr: &Expr| {
+                let body = if let Some(target_trait) = &attributes.target_trait {
+                    quote::quote! { #target_trait::#name(#expr, #(#args),*) }
+                } else if is_method {
+                    quote::quote! { #expr.#name(#(#args),*) }
+                } else {
+                    quote::quote! { #expr::#name(#(#args),*) }
+                };
+
+                let mut body = if generate_await {
+                    quote::quote! { #body.await }
+                } else {
+                    body
+                };
+
+                for expression in &attributes.expressions {
+                    match expression {
+                        ReturnExpression::Into(type_name) => {
+                            body = match type_name {
+                                Some(name) => {
+                                    quote::quote! { ::std::convert::Into::<#name>::into(#body) }
+                                }
+                                None => quote::quote! { ::std::convert::Into::into(#body) },
+                            };
+                        }
+                        ReturnExpression::TryInto => {
+                            body = quote::quote! { ::std::convert::TryInto::try_into(#body) };
+                        }
+                        ReturnExpression::Unwrap => {
+                            body = quote::quote! { #body.unwrap() };
+                        }
                     }
                 }
-            }
+                body
+            };
+            let mut body = if let Expr::Match(expr_match) = delegated_expr {
+                let mut expr_match = expr_match.clone();
+                MatchVisitor(modify_expr).visit_expr_match_mut(&mut expr_match);
+                expr_match.into_token_stream()
+            } else {
+                modify_expr(delegated_expr)
+            };
 
             if let syn::ReturnType::Default = &signature.output {
                 body = quote::quote! { #body; };
             };
 
-            let attrs = attributes.attributes;
+            let attrs = &attributes.attributes;
             quote::quote_spanned! {span=>
                 #(#attrs)*
                 #inline
