@@ -301,6 +301,44 @@
 //!     }
 //! }
 //! ```
+//!
+//! - Add additional arguments to method
+//!
+//!  ```rust
+//!  use delegate::delegate;
+//!  use std::cell::OnceCell;
+//!  struct Inner(u32);
+//!  impl Inner {
+//!      pub fn new(m: u32) -> Self {
+//!          // some "very complex" constructing work
+//!          Self(m)
+//!      }
+//!      pub fn method(&self, n: u32) -> u32 {
+//!          self.0 + n
+//!      }
+//!  }
+//!  
+//!  struct Wrapper {
+//!      inner: OnceCell<Inner>,
+//!  }
+//!  
+//!  impl Wrapper {
+//!      pub fn new() -> Self {
+//!          Self {
+//!              inner: OnceCell::new(),
+//!          }
+//!      }
+//!      fn content(&self, val: u32) -> &Inner {
+//!          self.inner.get_or_init(|| Inner(val))
+//!      }
+//!      delegate! {
+//!          to |k: u32| self.content(k) {
+//!              // `wrapper.method(k, num)` will call `self.content(k).method(num)`
+//!              pub fn method(&self, num: u32) -> u32;
+//!          }
+//!      }
+//!  }
+//!  ```
 //! - Delegate associated functions
 //!   ```rust
 //!   use delegate::delegate;
@@ -733,7 +771,7 @@ impl<F: Fn(&Expr) -> proc_macro2::TokenStream> VisitMut for MatchVisitor<F> {
 pub fn delegate(tokens: TokenStream) -> TokenStream {
     let block: DelegationBlock = syn::parse_macro_input!(tokens);
     let sections = block.segments.iter().map(|delegator| {
-        let mut delegated_expr = &delegator.delegator;
+        let delegated_expr = &delegator.delegator;
         let functions = delegator.methods.iter().map(|method| {
             let input = &method.method;
             let mut signature = input.sig.clone();
@@ -797,9 +835,11 @@ pub fn delegate(tokens: TokenStream) -> TokenStream {
             let is_method = method.method.sig.receiver().is_some();
 
             // Use the body of a closure (like `|k: u32| <body>`) as the delegation expression
-            if let Expr::Closure(closure) = delegated_expr {
-                delegated_expr = &closure.body;
-            }
+            let delegated_body = if let Expr::Closure(closure) = delegated_expr {
+                &closure.body
+            } else {
+                delegated_expr
+            };
 
             let span = input.span();
             let generate_await = attributes
@@ -841,12 +881,12 @@ pub fn delegate(tokens: TokenStream) -> TokenStream {
                 }
                 body
             };
-            let mut body = if let Expr::Match(expr_match) = delegated_expr {
+            let mut body = if let Expr::Match(expr_match) = delegated_body {
                 let mut expr_match = expr_match.clone();
                 MatchVisitor(modify_expr).visit_expr_match_mut(&mut expr_match);
                 expr_match.into_token_stream()
             } else {
-                modify_expr(delegated_expr)
+                modify_expr(delegated_body)
             };
 
             if let syn::ReturnType::Default = &signature.output {
