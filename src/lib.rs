@@ -195,7 +195,7 @@
 //! ```
 //! - Inserts `#[inline(always)]` automatically (unless you specify `#[inline]` manually on the method)
 //! - You can use an attribute on a whole segment to automatically apply it to all methods in that
-//! segment:
+//!   segment:
 //! ```rust
 //! use delegate::delegate;
 //!
@@ -245,7 +245,7 @@
 //! }
 //! ```
 //! - Modify how will an input parameter be passed to the delegated method with parameter attribute modifiers.
-//! Currently, the following modifiers are supported:
+//!   Currently, the following modifiers are supported:
 //!     - `#[into]`: Calls `.into()` on the parameter passed to the delegated method.
 //!     - `#[as_ref]`: Calls `.as_ref()` on the parameter passed to the delegated method.
 //!     - `#[newtype]`: Calls `.0` on the parameter passed to the delegated method.
@@ -274,7 +274,7 @@
 //! }
 //! ```
 //! - Specify a trait through which will the delegated method be called
-//! (using [UFCS](https://doc.rust-lang.org/reference/expressions/call-expr.html#disambiguating-function-calls).
+//!   (using [UFCS](https://doc.rust-lang.org/reference/expressions/call-expr.html#disambiguating-function-calls).
 //! ```rust
 //! use delegate::delegate;
 //!
