@@ -866,13 +866,13 @@ pub fn delegate(tokens: TokenStream) -> TokenStream {
                         ReturnExpression::Into(type_name) => {
                             body = match type_name {
                                 Some(name) => {
-                                    quote::quote! { ::std::convert::Into::<#name>::into(#body) }
+                                    quote::quote! { ::core::convert::Into::<#name>::into(#body) }
                                 }
-                                None => quote::quote! { ::std::convert::Into::into(#body) },
+                                None => quote::quote! { ::core::convert::Into::into(#body) },
                             };
                         }
                         ReturnExpression::TryInto => {
-                            body = quote::quote! { ::std::convert::TryInto::try_into(#body) };
+                            body = quote::quote! { ::core::convert::TryInto::try_into(#body) };
                         }
                         ReturnExpression::Unwrap => {
                             body = quote::quote! { #body.unwrap() };
