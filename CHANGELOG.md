@@ -1,4 +1,4 @@
-# Dev
+# 0.13.0 (2. 9. 2024)
 
 - Generalize match arms handling. You can now combine a match expression target with annotations like `#[into]` and
   others:
