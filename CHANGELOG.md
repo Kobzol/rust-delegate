@@ -59,6 +59,8 @@ impl Common {
 }
 ```
 
+- The crate should be `#[no_std]` compatible again (https://github.com/Kobzol/rust-delegate/pull/74).
+
 # 0.12.0 (22. 12. 2023)
 
 - Add new `#[newtype]` function parameter modifier ([#64](https://github.com/Kobzol/rust-delegate/pull/64)).
