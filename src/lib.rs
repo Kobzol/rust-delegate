@@ -373,7 +373,7 @@ use quote::{quote, ToTokens};
 use syn::parse::ParseStream;
 use syn::spanned::Spanned;
 use syn::visit_mut::VisitMut;
-use syn::{parse_quote, Error, Expr, ExprField, ExprMethodCall, FnArg, Meta};
+use syn::{parse_quote, Error, Expr, ExprField, ExprMethodCall, FnArg, GenericParam, Meta};
 
 use crate::attributes::{
     combine_attributes, parse_method_attributes, parse_segment_attributes, ReturnExpression,
@@ -846,13 +846,46 @@ pub fn delegate(tokens: TokenStream) -> TokenStream {
                 .generate_await
                 .unwrap_or_else(|| method.method.sig.asyncness.is_some());
 
+            // fn method<'a, A, B> -> method::<'a, A, B>
+            let generic_params = &method.method.sig.generics.params;
+            let generics = if generic_params.is_empty() {
+                quote::quote! {}
+            } else {
+                let span = generic_params.span();
+                let mut params: syn::punctuated::Punctuated<
+                    proc_macro2::TokenStream,
+                    syn::Token![,],
+                > = syn::punctuated::Punctuated::new();
+                for param in generic_params.iter() {
+                    let token = match param {
+                        GenericParam::Lifetime(l) => {
+                            let token = &l.lifetime;
+                            let span = l.span();
+                            quote::quote_spanned! {span=> #token }
+                        }
+                        GenericParam::Type(t) => {
+                            let token = &t.ident;
+                            let span = t.span();
+                            quote::quote_spanned! {span=> #token }
+                        }
+                        GenericParam::Const(c) => {
+                            let token = &c.ident;
+                            let span = c.span();
+                            quote::quote_spanned! {span=> #token }
+                        }
+                    };
+                    params.push(token);
+                }
+                quote::quote_spanned! {span=> ::<#params> }
+            };
+
             let modify_expr = |expr: &Expr| {
                 let body = if let Some(target_trait) = &attributes.target_trait {
-                    quote::quote! { #target_trait::#name(#expr, #(#args),*) }
+                    quote::quote! { #target_trait::#name#generics(#expr, #(#args),*) }
                 } else if is_method {
-                    quote::quote! { #expr.#name(#(#args),*) }
+                    quote::quote! { #expr.#name#generics(#(#args),*) }
                 } else {
-                    quote::quote! { #expr::#name(#(#args),*) }
+                    quote::quote! { #expr::#name#generics(#(#args),*) }
                 };
 
                 let mut body = if generate_await {
