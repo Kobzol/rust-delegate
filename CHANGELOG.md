@@ -1,4 +1,4 @@
-# Dev
+# 0.13.1 (9. 10. 2024)
 
 - Correctly pass generic method type and lifetime arguments to the delegated method.
 
