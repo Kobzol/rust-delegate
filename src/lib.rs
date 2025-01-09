@@ -370,7 +370,7 @@ use proc_macro::TokenStream;
 
 use proc_macro2::Ident;
 use quote::{quote, ToTokens};
-use syn::parse::ParseStream;
+use syn::parse::{Parse, ParseStream};
 use syn::spanned::Spanned;
 use syn::visit_mut::VisitMut;
 use syn::{parse_quote, Error, Expr, ExprField, ExprMethodCall, FnArg, GenericParam, Meta};
@@ -971,54 +971,60 @@ fn tolerant_outer_attributes(input: ParseStream) -> syn::Result<Vec<syn::Attribu
 
     // adapted from `impl Parse for Meta`
     fn tolerant_meta(input: ParseStream) -> Result<Meta> {
-        let path = Path::from(input.call(Ident::parse_any)?);
-        if input.peek(Paren) || input.peek(Bracket) || input.peek(Brace) {
-            // adapted from the private `syn::attr::parse_meta_after_path`
-            input.step(|cursor| {
-                if let Some((TokenTree::Group(g), rest)) = cursor.token_tree() {
-                    let span = g.delim_span();
-                    let delimiter = match g.delimiter() {
-                        Delimiter::Parenthesis => MacroDelimiter::Paren(Paren(span)),
-                        Delimiter::Brace => MacroDelimiter::Brace(Brace(span)),
-                        Delimiter::Bracket => MacroDelimiter::Bracket(Bracket(span)),
-                        Delimiter::None => {
-                            return Err(cursor.error("expected delimiter"));
-                        }
-                    };
-                    Ok((
-                        Meta::List(MetaList {
-                            path,
-                            delimiter,
-                            tokens: g.stream(),
-                        }),
-                        rest,
-                    ))
-                } else {
-                    Err(cursor.error("expected delimiter"))
-                }
-            })
-        } else if input.peek(Token![=]) {
-            // adapted from the private `syn::attr::parse_meta_name_value_after_path`
-            let eq_token = input.parse()?;
-            let ahead = input.fork();
-            let value = match ahead.parse::<Option<Lit>>()? {
-                // this branch is probably for speeding up the parsing for doc comments etc.
-                Some(lit) if ahead.is_empty() => {
-                    input.advance_to(&ahead);
-                    Expr::Lit(ExprLit {
-                        attrs: Vec::new(),
-                        lit,
-                    })
-                }
-                _ => input.parse()?,
-            };
-            Ok(Meta::NameValue(MetaNameValue {
-                path,
-                eq_token,
-                value,
-            }))
+        // Try to parse as Meta
+        if let Ok(meta) = input.call(Meta::parse) {
+            Ok(meta)
         } else {
-            Ok(Meta::Path(path))
+            // If it's not possible, try to parse it as any identifier, to support #[await]
+            let path = Path::from(input.call(Ident::parse_any)?);
+            if input.peek(Paren) || input.peek(Bracket) || input.peek(Brace) {
+                // adapted from the private `syn::attr::parse_meta_after_path`
+                input.step(|cursor| {
+                    if let Some((TokenTree::Group(g), rest)) = cursor.token_tree() {
+                        let span = g.delim_span();
+                        let delimiter = match g.delimiter() {
+                            Delimiter::Parenthesis => MacroDelimiter::Paren(Paren(span)),
+                            Delimiter::Brace => MacroDelimiter::Brace(Brace(span)),
+                            Delimiter::Bracket => MacroDelimiter::Bracket(Bracket(span)),
+                            Delimiter::None => {
+                                return Err(cursor.error("expected delimiter"));
+                            }
+                        };
+                        Ok((
+                            Meta::List(MetaList {
+                                path,
+                                delimiter,
+                                tokens: g.stream(),
+                            }),
+                            rest,
+                        ))
+                    } else {
+                        Err(cursor.error("expected delimiter"))
+                    }
+                })
+            } else if input.peek(Token![=]) {
+                // adapted from the private `syn::attr::parse_meta_name_value_after_path`
+                let eq_token = input.parse()?;
+                let ahead = input.fork();
+                let value = match ahead.parse::<Option<Lit>>()? {
+                    // this branch is probably for speeding up the parsing for doc comments etc.
+                    Some(lit) if ahead.is_empty() => {
+                        input.advance_to(&ahead);
+                        Expr::Lit(ExprLit {
+                            attrs: Vec::new(),
+                            lit,
+                        })
+                    }
+                    _ => input.parse()?,
+                };
+                Ok(Meta::NameValue(MetaNameValue {
+                    path,
+                    eq_token,
+                    value,
+                }))
+            } else {
+                Ok(Meta::Path(path))
+            }
         }
     }
 

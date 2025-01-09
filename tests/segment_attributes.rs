@@ -211,3 +211,28 @@ fn test_segment_inline() {
     let bar = Bar(Foo);
     assert_eq!(bar.f(), 0);
 }
+
+#[test]
+fn test_attribute_with_path() {
+    struct Foo;
+
+    impl Foo {
+        fn f(&self) -> u32 {
+            0
+        }
+    }
+
+    struct Bar(Foo);
+
+    impl Bar {
+        delegate! {
+            #[diagnostic::on_unimplemented]
+            to self.0 {
+                fn f(&self) -> u32;
+            }
+        }
+    }
+
+    let bar = Bar(Foo);
+    assert_eq!(bar.f(), 0);
+}
