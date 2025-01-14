@@ -1,3 +1,7 @@
+# 0.13.2 (14. 1. 2025)
+
+- Correctly parse attributes with segmented paths (e.g. `#[a::b::c]`) (https://github.com/Kobzol/rust-delegate/issues/77).
+
 # 0.13.1 (9. 10. 2024)
 
 - Correctly pass generic method type and lifetime arguments to the delegated method.
