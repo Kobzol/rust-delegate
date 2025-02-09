@@ -1,3 +1,7 @@
+# Dev
+
+- Add `#[const(path::to::Trait::CONST)]` attribute to delegate associated constants via a getter.
+
 # 0.13.2 (14. 1. 2025)
 
 - Correctly parse attributes with segmented paths (e.g. `#[a::b::c]`) (https://github.com/Kobzol/rust-delegate/issues/77).

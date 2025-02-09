@@ -362,10 +362,56 @@
 //!
 //!   assert_eq!(B::foo(1), 2);
 //!   ```
+//! - Delegate associated constants
+//!
+//! ```rust
+//! use delegate::delegate;
+//!
+//! trait WithConst {
+//!     const TOTO: u8;
+//! }
+//!
+//! struct A;
+//! impl WithConst for A {
+//!     const TOTO: u8 = 1;
+//! }
+//!
+//! struct B;
+//! impl WithConst for B {
+//!     const TOTO: u8 = 2;
+//! }
+//! struct C;
+//! impl WithConst for C {
+//!     const TOTO: u8 = 2;
+//! }
+//!
+//! enum Enum {
+//!     A(A),
+//!     B(B),
+//!     C(C),
+//! }
+//!
+//! impl Enum {
+//!     delegate! {
+//!         to match self {
+//!             Self::A(a) => a,
+//!             Self::B(b) => b,
+//!             Self::C(c) => { println!("hello from c"); c },
+//!         } {
+//!             #[const(WithConst::TOTO)]
+//!             fn get_toto(&self) -> u8;
+//!         }
+//!     }
+//! }
+//!
+//! assert_eq!(Enum::A(A).get_toto(), <A as WithConst>::TOTO);
+//!
+//! ```
 
 extern crate proc_macro;
 use std::mem;
 
+use attributes::AssociatedConstant;
 use proc_macro::TokenStream;
 
 use proc_macro2::Ident;
@@ -833,6 +879,7 @@ pub fn delegate(tokens: TokenStream) -> TokenStream {
             let visibility = &method.visibility;
 
             let is_method = method.method.sig.receiver().is_some();
+            let associated_const = &attributes.associated_constant;
 
             // Use the body of a closure (like `|k: u32| <body>`) as the delegation expression
             let delegated_body = if let Expr::Closure(closure) = delegated_expr {
@@ -882,6 +929,18 @@ pub fn delegate(tokens: TokenStream) -> TokenStream {
             let modify_expr = |expr: &Expr| {
                 let body = if let Some(target_trait) = &attributes.target_trait {
                     quote::quote! { #target_trait::#name#generics(#expr, #(#args),*) }
+                } else if let Some(AssociatedConstant {
+                    const_name,
+                    trait_path,
+                }) = associated_const
+                {
+                    let return_type = &signature.output;
+                    quote::quote! {{
+                        const fn get_const<T: #trait_path>(t: &T) #return_type {
+                            <T as #trait_path>::#const_name
+                        }
+                        get_const(#expr)
+                    }}
                 } else if is_method {
                     quote::quote! { #expr.#name#generics(#(#args),*) }
                 } else {

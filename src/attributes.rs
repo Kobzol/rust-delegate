@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 
 use syn::parse::ParseStream;
-use syn::{Attribute, Error, Meta, TypePath};
+use syn::{Attribute, Error, Meta, Path, PathSegment, TypePath};
 
 struct CallMethodAttribute {
     name: syn::Ident,
@@ -46,6 +46,43 @@ impl syn::parse::Parse for IntoAttribute {
     }
 }
 
+pub struct AssociatedConstant {
+    pub const_name: PathSegment,
+    pub trait_path: Path,
+}
+
+impl syn::parse::Parse for AssociatedConstant {
+    fn parse(input: ParseStream) -> Result<Self, Error> {
+        let mut path = input.parse::<syn::Path>().map_err(|error| {
+            Error::new(
+                input.span(),
+                format!(
+                    "{error}\nExpected const path, e.g. #[const(path::to::MyTrait::CONST_NAME)]"
+                ),
+            )
+        })?;
+
+        let const_name = path.segments.pop().ok_or_else(|| {
+            Error::new_spanned(
+                &path,
+                "Expected a path. e.g. #[const(path::to::MyTrait::CONST_NAME)]",
+            )
+        })?;
+        // poping a segment leads to trailing `::`
+        path.segments.pop_punct().ok_or_else(|| {
+            Error::new_spanned(
+                &path,
+                "Expected a multipart path. e.g. #[const(path::to::MyTrait::CONST_NAME)]",
+            )
+        })?;
+
+        Ok(Self {
+            const_name: const_name.into_value(),
+            trait_path: path,
+        })
+    }
+}
+
 pub struct TraitTarget {
     type_path: TypePath,
 }
@@ -75,6 +112,7 @@ enum ParsedAttribute {
     Await(bool),
     TargetMethod(syn::Ident),
     ThroughTrait(TraitTarget),
+    ConstantAccess(AssociatedConstant),
 }
 
 fn parse_attributes(
@@ -139,6 +177,11 @@ fn parse_attributes(
                             .parse_args::<TraitTarget>()
                             .expect("Cannot parse `through` attribute"),
                     )),
+                    "const" => Some(ParsedAttribute::ConstantAccess(
+                        attribute
+                            .parse_args::<AssociatedConstant>()
+                            .expect("Cannot parse `const` attribute"),
+                    )),
                     _ => None,
                 }
             } else {
@@ -160,6 +203,7 @@ pub struct MethodAttributes<'a> {
     pub expressions: VecDeque<ReturnExpression>,
     pub generate_await: Option<bool>,
     pub target_trait: Option<TypePath>,
+    pub associated_constant: Option<AssociatedConstant>,
 }
 
 /// Iterates through the attributes of a method and filters special attributes.
@@ -169,6 +213,7 @@ pub struct MethodAttributes<'a> {
 /// - await => generates an `.await` expression after the delegated expression
 /// - unwrap => generates a `unwrap()` call after the delegated expression
 /// - through => generates a UFCS call (`Target::method(&<expr>, ...)`) around the delegated expression
+/// - const => generates a getter to a trait associated constant
 pub fn parse_method_attributes<'a>(
     attrs: &'a [Attribute],
     method: &syn::TraitItemFn,
@@ -177,6 +222,7 @@ pub fn parse_method_attributes<'a>(
     let mut expressions: Vec<ReturnExpression> = vec![];
     let mut generate_await: Option<bool> = None;
     let mut target_trait: Option<TraitTarget> = None;
+    let mut associated_constant: Option<AssociatedConstant> = None;
 
     let (parsed, other) = parse_attributes(attrs);
     for attr in parsed {
@@ -209,7 +255,20 @@ pub fn parse_method_attributes<'a>(
                 }
                 target_trait = Some(target);
             }
+            ParsedAttribute::ConstantAccess(const_attr) => {
+                if associated_constant.is_some() {
+                    panic!(
+                        "Multiple const attributes specified for {}",
+                        method.sig.ident
+                    )
+                }
+                associated_constant = Some(const_attr);
+            }
         }
+    }
+
+    if associated_constant.is_some() && target_method.is_some() {
+        panic!("Cannot use both `call` and `const` attributes.");
     }
 
     MethodAttributes {
@@ -218,6 +277,7 @@ pub fn parse_method_attributes<'a>(
         generate_await,
         expressions: expressions.into(),
         target_trait: target_trait.map(|t| t.type_path),
+        associated_constant,
     }
 }
 
@@ -252,6 +312,9 @@ pub fn parse_segment_attributes(attrs: &[Attribute]) -> SegmentAttributes {
             }
             ParsedAttribute::TargetMethod(_) => {
                 panic!("Call attribute cannot be specified on a `to <expr>` segment.");
+            }
+            ParsedAttribute::ConstantAccess(_) => {
+                panic!("Const attribute cannot be specified on a `to <expr>` segment.");
             }
         }
     }

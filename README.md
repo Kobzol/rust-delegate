@@ -371,6 +371,52 @@ impl<T> Stack<T> {
   assert_eq!(B::foo(1), 2);
   ```
 
+- Delegate associated constants
+
+```rust
+use delegate::delegate;
+
+trait WithConst {
+    const TOTO: u8;
+}
+
+struct A;
+impl WithConst for A {
+    const TOTO: u8 = 1;
+}
+
+struct B;
+impl WithConst for B {
+    const TOTO: u8 = 2;
+}
+struct C;
+impl WithConst for C {
+    const TOTO: u8 = 2;
+}
+
+enum Enum {
+    A(A),
+    B(B),
+    C(C),
+}
+
+impl Enum {
+    delegate! {
+        to match self {
+            Self::A(a) => a,
+            Self::B(b) => b,
+            Self::C(c) => { println!("hello from c"); c },
+        } {
+            #[const(WithConst::TOTO)]
+            fn get_toto(&self) -> u8;
+        }
+    }
+}
+
+assert_eq!(Enum::A(A).get_toto(), <A as WithConst>::TOTO);
+
+```
+
 ## License
 
 Licensed under either of
