@@ -806,7 +806,7 @@ fn has_inline_attribute(attrs: &[&syn::Attribute]) -> bool {
 
 struct MatchVisitor<F>(F);
 
-impl<F: Fn(&Expr) -> proc_macro2::TokenStream> VisitMut for MatchVisitor<F> {
+impl<F: Fn(&Expr) -> syn::Expr> VisitMut for MatchVisitor<F> {
     fn visit_arm_mut(&mut self, arm: &mut syn::Arm) {
         let transformed = self.0(&arm.body);
         arm.body = parse_quote!(#transformed);
@@ -927,30 +927,28 @@ pub fn delegate(tokens: TokenStream) -> TokenStream {
             };
 
             let modify_expr = |expr: &Expr| {
-                let body = if let Some(target_trait) = &attributes.target_trait {
-                    quote::quote! { #target_trait::#name#generics(#expr, #(#args),*) }
+                let mut body: syn::Expr = if let Some(target_trait) = &attributes.target_trait {
+                    syn::parse_quote! { #target_trait::#name#generics(#expr, #(#args),*) }
                 } else if let Some(AssociatedConstant {
                     const_name,
                     trait_path,
                 }) = associated_const
                 {
                     let return_type = &signature.output;
-                    quote::quote! {{
+                    syn::parse_quote! {{
                         const fn get_const<T: #trait_path>(t: &T) #return_type {
                             <T as #trait_path>::#const_name
                         }
                         get_const(#expr)
                     }}
                 } else if is_method {
-                    quote::quote! { #expr.#name#generics(#(#args),*) }
+                    syn::parse_quote! { #expr.#name#generics(#(#args),*) }
                 } else {
-                    quote::quote! { #expr::#name#generics(#(#args),*) }
+                    syn::parse_quote! { #expr::#name#generics(#(#args),*) }
                 };
 
-                let mut body = if generate_await {
-                    quote::quote! { #body.await }
-                } else {
-                    body
+                if generate_await {
+                    body = syn::parse_quote! { #body.await };
                 };
 
                 for expression in &attributes.expressions {
@@ -958,31 +956,32 @@ pub fn delegate(tokens: TokenStream) -> TokenStream {
                         ReturnExpression::Into(type_name) => {
                             body = match type_name {
                                 Some(name) => {
-                                    quote::quote! { ::core::convert::Into::<#name>::into(#body) }
+                                    syn::parse_quote! { ::core::convert::Into::<#name>::into(#body) }
                                 }
-                                None => quote::quote! { ::core::convert::Into::into(#body) },
+                                None => syn::parse_quote! { ::core::convert::Into::into(#body) },
                             };
                         }
                         ReturnExpression::TryInto => {
-                            body = quote::quote! { ::core::convert::TryInto::try_into(#body) };
+                            body = syn::parse_quote! { ::core::convert::TryInto::try_into(#body) };
                         }
                         ReturnExpression::Unwrap => {
-                            body = quote::quote! { #body.unwrap() };
+                            body = syn::parse_quote! { #body.unwrap() };
                         }
                     }
                 }
                 body
             };
+
             let mut body = if let Expr::Match(expr_match) = delegated_body {
                 let mut expr_match = expr_match.clone();
                 MatchVisitor(modify_expr).visit_expr_match_mut(&mut expr_match);
-                expr_match.into_token_stream()
+                expr_match.into()
             } else {
                 modify_expr(delegated_body)
             };
 
             if let syn::ReturnType::Default = &signature.output {
-                body = quote::quote! { #body; };
+                body = syn::parse_quote! { #body; };
             };
 
             let attrs = &attributes.attributes;
