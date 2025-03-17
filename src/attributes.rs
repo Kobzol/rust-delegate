@@ -1,5 +1,7 @@
 use std::collections::VecDeque;
 
+use proc_macro2::{Delimiter, TokenStream, TokenTree};
+use quote::ToTokens;
 use syn::parse::ParseStream;
 use syn::{Attribute, Error, Meta, Path, PathSegment, TypePath};
 
@@ -83,6 +85,99 @@ impl syn::parse::Parse for AssociatedConstant {
     }
 }
 
+#[derive(Clone)]
+/// Represent the placeholder `$` found inside an expr attribute's template
+pub struct ExprPlaceHolder;
+
+impl syn::parse::Parse for ExprPlaceHolder {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        input.parse::<syn::Token![$]>()?;
+        Ok(Self)
+    }
+}
+
+/// Kind of allowed placeholders in an `expr` attribute template
+#[derive(Clone)]
+enum Placeholder {
+    ExprPlaceholder(ExprPlaceHolder),
+}
+
+#[derive(Clone)]
+/// Tokens found in the expr attribute's template
+/// Token are either
+/// - a replacable pattern (placeholder)
+/// - a normal token
+/// - a group containing a recursive representation of template tokens
+enum TemplateToken {
+    Normal(TokenTree),
+    Placeholder(Placeholder),
+    Group(Delimiter, TemplateExpr),
+}
+
+impl TemplateToken {
+    /// Replace relevant placeholder tokens with the provided tokens
+    fn replace(&self, replacement: &TokenStream) -> TokenStream {
+        match self {
+            Self::Group(del, template) => {
+                let replaced_tokens = template
+                    .tokens
+                    .iter()
+                    .map(|token| token.replace(replacement));
+                proc_macro2::Group::new(*del, quote::quote! { #(#replaced_tokens)* })
+                    .to_token_stream()
+            }
+            Self::Normal(token_tree) => token_tree.to_token_stream(),
+            Self::Placeholder(_) => replacement.clone(),
+        }
+    }
+}
+
+#[derive(Clone)]
+/// An expr attribute's template
+pub struct TemplateExpr {
+    tokens: Vec<TemplateToken>,
+}
+
+impl syn::parse::Parse for TemplateExpr {
+    /// Parsing a template means storing the raw template while differenciating
+    /// placeholders and "normal" tokens
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let mut tokens = Vec::new();
+        while !input.is_empty() {
+            if input.fork().parse::<ExprPlaceHolder>().is_ok() {
+                let placeholder = input.parse()?;
+                tokens.push(TemplateToken::Placeholder(Placeholder::ExprPlaceholder(
+                    placeholder,
+                )));
+                continue;
+            }
+
+            match input.parse()? {
+                TokenTree::Group(group) => {
+                    let inner_stream = group.stream();
+                    let inner_expr = syn::parse2(inner_stream)?;
+                    tokens.push(TemplateToken::Group(group.delimiter(), inner_expr));
+                }
+                other => {
+                    tokens.push(TemplateToken::Normal(other));
+                }
+            }
+        }
+
+        Ok(TemplateExpr { tokens })
+    }
+}
+
+impl TemplateExpr {
+    /// returns the template after expanding the relevant placeholders
+    pub fn expand_template(&self, replacement: &TokenStream) -> TokenStream {
+        self.tokens.iter().fold(TokenStream::new(), |mut ts, tok| {
+            ts.extend(tok.replace(replacement));
+            ts
+        })
+    }
+}
+
 pub struct TraitTarget {
     type_path: TypePath,
 }
@@ -113,6 +208,7 @@ enum ParsedAttribute {
     TargetMethod(syn::Ident),
     ThroughTrait(TraitTarget),
     ConstantAccess(AssociatedConstant),
+    Expr(TemplateExpr),
 }
 
 fn parse_attributes(
@@ -182,6 +278,11 @@ fn parse_attributes(
                             .parse_args::<AssociatedConstant>()
                             .expect("Cannot parse `const` attribute"),
                     )),
+                    "expr" => Some(ParsedAttribute::Expr(
+                        attribute
+                            .parse_args::<TemplateExpr>()
+                            .expect("Cannot parse `expr` attribute"),
+                    )),
                     _ => None,
                 }
             } else {
@@ -204,6 +305,7 @@ pub struct MethodAttributes<'a> {
     pub generate_await: Option<bool>,
     pub target_trait: Option<TypePath>,
     pub associated_constant: Option<AssociatedConstant>,
+    pub expr_attr: Option<TemplateExpr>,
 }
 
 /// Iterates through the attributes of a method and filters special attributes.
@@ -223,6 +325,7 @@ pub fn parse_method_attributes<'a>(
     let mut generate_await: Option<bool> = None;
     let mut target_trait: Option<TraitTarget> = None;
     let mut associated_constant: Option<AssociatedConstant> = None;
+    let mut expr_attr: Option<TemplateExpr> = None;
 
     let (parsed, other) = parse_attributes(attrs);
     for attr in parsed {
@@ -264,6 +367,15 @@ pub fn parse_method_attributes<'a>(
                 }
                 associated_constant = Some(const_attr);
             }
+            ParsedAttribute::Expr(token_tree) => {
+                if expr_attr.is_some() {
+                    panic!(
+                        "Multiple expr attributes specified for {}",
+                        method.sig.ident
+                    )
+                }
+                expr_attr = Some(token_tree);
+            }
         }
     }
 
@@ -278,6 +390,7 @@ pub fn parse_method_attributes<'a>(
         expressions: expressions.into(),
         target_trait: target_trait.map(|t| t.type_path),
         associated_constant,
+        expr_attr,
     }
 }
 
@@ -286,12 +399,14 @@ pub struct SegmentAttributes {
     pub generate_await: Option<bool>,
     pub target_trait: Option<TypePath>,
     pub other_attrs: Vec<Attribute>,
+    pub expr_attr: Option<TemplateExpr>,
 }
 
 pub fn parse_segment_attributes(attrs: &[Attribute]) -> SegmentAttributes {
     let mut expressions: Vec<ReturnExpression> = vec![];
     let mut generate_await: Option<bool> = None;
     let mut target_trait: Option<TraitTarget> = None;
+    let mut expr_attr: Option<TemplateExpr> = None;
 
     let (parsed, other) = parse_attributes(attrs);
 
@@ -316,6 +431,12 @@ pub fn parse_segment_attributes(attrs: &[Attribute]) -> SegmentAttributes {
             ParsedAttribute::ConstantAccess(_) => {
                 panic!("Const attribute cannot be specified on a `to <expr>` segment.");
             }
+            ParsedAttribute::Expr(token_tree) => {
+                if expr_attr.is_some() {
+                    panic!("Multiple `expr` attributes specified for segment");
+                }
+                expr_attr = Some(token_tree);
+            }
         }
     }
     SegmentAttributes {
@@ -323,6 +444,7 @@ pub fn parse_segment_attributes(attrs: &[Attribute]) -> SegmentAttributes {
         generate_await,
         target_trait: target_trait.map(|t| t.type_path),
         other_attrs: other.cloned().collect::<Vec<_>>(),
+        expr_attr,
     }
 }
 
@@ -336,6 +458,7 @@ pub fn combine_attributes<'a>(
         generate_await,
         target_trait,
         other_attrs,
+        expr_attr,
     } = segment_attrs;
 
     if method_attrs.generate_await.is_none() {
@@ -344,6 +467,10 @@ pub fn combine_attributes<'a>(
 
     if method_attrs.target_trait.is_none() {
         method_attrs.target_trait.clone_from(target_trait);
+    }
+
+    if method_attrs.expr_attr.is_none() {
+        method_attrs.expr_attr.clone_from(expr_attr);
     }
 
     for expr in expressions {
