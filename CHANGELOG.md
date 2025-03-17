@@ -1,7 +1,7 @@
 # Dev
 
-- Add `#[const(path::to::Trait::CONST)]` attribute to delegate associated constants via a getter.
-- Add `#[expr(<$ template>)]` attribute to modify delegated call using custom code (thanks to @vic1707).
+- Add `#[const(path::to::Trait::CONST)]` attribute to delegate associated constants via a getter (implemented by @vic1707).
+- Add `#[expr(<$ template>)]` attribute to modify delegated call using custom code (implemented by @vic1707).
 
 # 0.13.2 (14. 1. 2025)
 
