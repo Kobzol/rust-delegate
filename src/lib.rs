@@ -144,6 +144,34 @@
 //!     }
 //! }
 //! ```
+//!
+//! - Custom called expression
+//!
+//! The `#[expr()]` attribute can be used to modify the delegated call. You can use the `$` sigil as a placeholder for what delegate would normally expand to, and wrap that expression with custom code.
+//!
+//! _Note:_ the `$` placeholder isn't required and can be present multiple times if you want.
+//!
+//! ```rs
+//! struct A(Vec<u8>);
+//!
+//! impl A {
+//!     delegate! {
+//!         to self.0 {
+//!             #[expr(*$.unwrap())]
+//!             /// Here `$` == `self.0.get(idx)`
+//!             /// Will expand to `*self.0.get(idx).unwrap()`
+//!             fn get(&self, idx: usize) -> u8;
+//!
+//!             #[call(get)]
+//!             #[expr($?.checked_pow(2))]
+//!             /// Here `$` == `self.0.get(idx)`
+//!             /// Will expand to `self.0.get(idx)?.checked_pow(2)`
+//!             fn get_checked_pow_2(&self, idx: usize) -> Option<u8>;
+//!         }
+//!     }
+//! }
+//! ```
+//!
 //! - Call `await` on async functions
 //! ```rust
 //! use delegate::delegate;
@@ -880,6 +908,7 @@ pub fn delegate(tokens: TokenStream) -> TokenStream {
 
             let is_method = method.method.sig.receiver().is_some();
             let associated_const = &attributes.associated_constant;
+            let expr_attr = &attributes.expr_attr;
 
             // Use the body of a closure (like `|k: u32| <body>`) as the delegation expression
             let delegated_body = if let Expr::Closure(closure) = delegated_expr {
@@ -984,6 +1013,10 @@ pub fn delegate(tokens: TokenStream) -> TokenStream {
             if let syn::ReturnType::Default = &signature.output {
                 body = quote::quote! { #body; };
             };
+
+            if let Some(expr_template) = expr_attr {
+                body = expr_template.expand_template(&body);
+            }
 
             let attrs = &attributes.attributes;
             quote::quote_spanned! {span=>

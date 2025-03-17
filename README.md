@@ -182,6 +182,33 @@ impl<T> Stack<T> {
   }
   ```
 
+- Custom called expression
+
+The `#[expr()]` attribute can be used to modify the delegated call. You can use the `$` sigil as a placeholder for what delegate would normally expand to, and wrap that expression with custom code.
+
+_Note:_ the `$` placeholder isn't required and can be present multiple times if you want.
+
+```rs
+struct A(Vec<u8>);
+
+impl A {
+    delegate! {
+        to self.0 {
+            #[expr(*$.unwrap())]
+            /// Here `$` == `self.0.get(idx)`
+            /// Will expand to `*self.0.get(idx).unwrap()`
+            fn get(&self, idx: usize) -> u8;
+
+            #[call(get)]
+            #[expr($?.checked_pow(2))]
+            /// Here `$` == `self.0.get(idx)`
+            /// Will expand to `self.0.get(idx)?.checked_pow(2)`
+            fn get_checked_pow_2(&self, idx: usize) -> Option<u8>;
+        }
+    }
+}
+```
+
 - Add additional arguments to method
 
   ```rust
@@ -414,7 +441,6 @@ impl Enum {
 }
 
 assert_eq!(Enum::A(A).get_toto(), <A as WithConst>::TOTO);
-
 ```
 
 ## License
