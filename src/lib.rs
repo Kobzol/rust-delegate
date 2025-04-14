@@ -922,7 +922,7 @@ pub fn delegate(tokens: TokenStream) -> TokenStream {
                 .generate_await
                 .unwrap_or_else(|| method.method.sig.asyncness.is_some());
 
-            // fn method<'a, A, B> -> method::<'a, A, B>
+            // fn method<'a, A, B> -> method::<A, B>
             let generic_params = &method.method.sig.generics.params;
             let generics = if generic_params.is_empty() {
                 quote::quote! {}
@@ -934,10 +934,11 @@ pub fn delegate(tokens: TokenStream) -> TokenStream {
                 > = syn::punctuated::Punctuated::new();
                 for param in generic_params.iter() {
                     let token = match param {
-                        GenericParam::Lifetime(l) => {
-                            let token = &l.lifetime;
-                            let span = l.span();
-                            quote::quote_spanned! {span=> #token }
+                        GenericParam::Lifetime(_) => {
+                            // Do not pass lifetimes to generic arguments explicitly to avoid
+                            // things like https://doc.rust-lang.org/error_codes/E0794.html
+                            // See https://github.com/Kobzol/rust-delegate/issues/85.
+                            continue;
                         }
                         GenericParam::Type(t) => {
                             let token = &t.ident;

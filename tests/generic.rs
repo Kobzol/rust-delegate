@@ -1,4 +1,6 @@
 use delegate::delegate;
+use std::collections::HashSet;
+use std::hash::Hash;
 
 #[test]
 fn test_generics_method() {
@@ -75,6 +77,30 @@ fn test_generics_complex() {
         delegate! {
             to &self.0 {
                 fn foo<'a: 'static, X: Copy, #[allow(unused)] T>(&self);
+            }
+        }
+    }
+}
+
+#[test]
+fn test_lifetime_late_bound() {
+    trait QSet<T>
+    where
+        T: PartialEq,
+    {
+        fn iter<'a>(&'a self) -> impl Iterator<Item = &'a T>
+        where
+            Self: Sized,
+            T: 'a;
+    }
+
+    impl<T: Eq + Hash> QSet<T> for HashSet<T> {
+        delegate! {
+            to self {
+                #[through(HashSet)]
+                fn iter<'a>(&'a self) -> impl Iterator<Item = &T>
+                where
+                    Self: Sized, T: 'a;
             }
         }
     }
