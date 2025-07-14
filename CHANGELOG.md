@@ -1,3 +1,7 @@
+# 0.13.4 (14. 7. 2025)
+
+- Do not explicitly forward lifetime arguments when calling delegated functions (https://github.com/Kobzol/rust-delegate/issues/85#)
+
 # 0.13.3 (25. 3. 2025)
 
 - Add `#[const(path::to::Trait::CONST)]` attribute to delegate associated constants via a getter (implemented by @vic1707).
