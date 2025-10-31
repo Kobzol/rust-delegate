@@ -895,10 +895,22 @@ pub fn delegate(tokens: TokenStream) -> TokenStream {
 
             // Generate an argument vector from Punctuated list.
             let args: Vec<Expr> = method.arguments.clone().into_iter().collect();
-            let name = match &attributes.target_method {
-                Some(n) => n,
+
+            let mut target_is_field = attributes.target_specifier.as_ref().map(|tgt| tgt.is_field()).unwrap_or(false);
+            let mut target_is_field = false;
+            let mut reference = None;
+            let name = match &attributes.target_specifier {
+                Some(target) => {
+                    target_is_field = target.is_field();
+                    reference = target.reference_tokens();
+                    target.name().unwrap_or(&input.sig.ident)
+                },
                 None => &input.sig.ident,
             };
+            // let name = match &attributes.target_method {
+            //     Some(n) => n,
+            //     None => &input.sig.ident,
+            // };
             let inline = if has_inline_attribute(&attributes.attributes) {
                 quote!()
             } else {
@@ -971,7 +983,9 @@ pub fn delegate(tokens: TokenStream) -> TokenStream {
                         }
                         get_const(#expr)
                     }}
-                } else if is_method {
+                } else if is_method && target_is_field {
+                    quote::quote! { #reference#expr.#name }
+                }  else if is_method {
                     quote::quote! { #expr.#name#generics(#(#args),*) }
                 } else {
                     quote::quote! { #expr::#name#generics(#(#args),*) }

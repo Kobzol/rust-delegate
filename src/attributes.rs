@@ -3,15 +3,56 @@ use std::collections::VecDeque;
 use proc_macro2::{Delimiter, TokenStream, TokenTree};
 use quote::ToTokens;
 use syn::parse::ParseStream;
-use syn::{Attribute, Error, Meta, Path, PathSegment, TypePath};
+use syn::{Attribute, Error, Meta, Path, PathSegment, Token, TypePath};
 
-struct CallMethodAttribute {
+pub struct CallMethodAttribute {
     name: syn::Ident,
 }
 
 impl syn::parse::Parse for CallMethodAttribute {
     fn parse(input: ParseStream) -> Result<Self, Error> {
         Ok(CallMethodAttribute {
+            name: input.parse()?,
+        })
+    }
+}
+
+#[derive(Default, Clone)]
+pub struct GetFieldAttribute {
+    reference: Option<(Token![&], Option<Token![mut]>)>,
+    name: Option<syn::Ident>,
+}
+
+impl GetFieldAttribute {
+    pub fn reference_tokens(&self) -> Option<TokenStream> {
+        let (ref_, mut_) = self.reference.as_ref()?;
+        let mut tokens = ref_.to_token_stream();
+        mut_.to_tokens(&mut tokens);
+        Some(tokens)
+    }
+}
+
+impl syn::parse::Parse for GetFieldAttribute {
+    fn parse(input: ParseStream) -> Result<Self, Error> {
+        let mut reference = None;
+        if let Some(ref_) = input.parse::<syn::Token![&]>().ok() {
+            reference = Some((ref_, None));
+        } else if let Some(ref_) = input.parse::<syn::Token![ref]>().ok() {
+            reference = Some((Token![&](ref_.span), None));
+        }
+        if let Some((_, mut_)) = &mut reference {
+            *mut_ = input.parse::<syn::Token![mut]>().ok();
+        }
+        // let mut reference = None;
+        // if let Some(ref_) = input.parse::<syn::Token![ref]>().ok() {
+        //     if let Some(mut_) = input.parse::<syn::Token![mut]>().ok() {
+        //         reference = Some((ref_, Some(mut_)));
+        //     } else {
+        //         reference = Some((ref_, None));
+        //     }
+        // };
+        Ok(GetFieldAttribute {
+            reference,
             name: input.parse()?,
         })
     }
@@ -202,10 +243,45 @@ pub enum ReturnExpression {
     Unwrap,
 }
 
+#[derive(Default)]
+pub enum TargetSpecifier {
+    Field(GetFieldAttribute),
+    Method(CallMethodAttribute),
+    #[default] None,
+}
+
+impl TargetSpecifier {
+    pub fn is_field(&self) -> bool {
+        matches!(self, Self::Field(_))
+    }
+    pub fn get_name<'a>(&'a self, default: &'a syn::Ident) -> &'a syn::Ident {
+        match self {
+            Self::Field(field) => field.name.as_ref().unwrap_or(default),
+            Self::Method(method) => &method.name,
+            Self::None => default,
+        }
+    }
+    pub fn name(&self) -> Option<&syn::Ident> {
+        match self {
+            Self::Field(field) => field.name.as_ref(),
+            Self::Method(method) => Some(&method.name),
+            Self::None => None,
+        }
+    }
+    pub fn reference_tokens(&self) -> Option<TokenStream> {
+        match self {
+            Self::Field(field) => field.reference_tokens(),
+            _ => None,
+        }
+    }
+}
+
 enum ParsedAttribute {
     ReturnExpression(ReturnExpression),
     Await(bool),
-    TargetMethod(syn::Ident),
+    TargetSpecifier(TargetSpecifier),
+    // TargetField(Option<syn::Ident>),
+    // TargetMethod(syn::Ident),
     ThroughTrait(TraitTarget),
     ConstantAccess(AssociatedConstant),
     Expr(TemplateExpr),
@@ -231,7 +307,19 @@ fn parse_attributes(
                         let target = attribute
                             .parse_args::<CallMethodAttribute>()
                             .expect("Cannot parse `call` attribute");
-                        Some(ParsedAttribute::TargetMethod(target.name))
+                        let spec = TargetSpecifier::Method(target);
+                        Some(ParsedAttribute::TargetSpecifier(spec))
+                    }
+                    "field" => {
+                        let target = if let syn::Meta::Path(_) = &attribute.meta {
+                            GetFieldAttribute::default()
+                        } else {
+                            attribute
+                            .parse_args::<GetFieldAttribute>()
+                            .expect("Cannot parse `field` attribute")
+                        };
+                        let spec = TargetSpecifier::Field(target);
+                        Some(ParsedAttribute::TargetSpecifier(spec))
                     }
                     "into" => {
                         let into = match &attribute.meta {
@@ -300,7 +388,8 @@ fn parse_attributes(
 
 pub struct MethodAttributes<'a> {
     pub attributes: Vec<&'a Attribute>,
-    pub target_method: Option<syn::Ident>,
+    pub target_specifier: Option<TargetSpecifier>,
+    // pub target_method: Option<syn::Ident>,
     pub expressions: VecDeque<ReturnExpression>,
     pub generate_await: Option<bool>,
     pub target_trait: Option<TypePath>,
@@ -320,7 +409,7 @@ pub fn parse_method_attributes<'a>(
     attrs: &'a [Attribute],
     method: &syn::TraitItemFn,
 ) -> MethodAttributes<'a> {
-    let mut target_method: Option<syn::Ident> = None;
+    let mut target_spec: Option<TargetSpecifier> = None;
     let mut expressions: Vec<ReturnExpression> = vec![];
     let mut generate_await: Option<bool> = None;
     let mut target_trait: Option<TraitTarget> = None;
@@ -340,14 +429,14 @@ pub fn parse_method_attributes<'a>(
                 }
                 generate_await = Some(value);
             }
-            ParsedAttribute::TargetMethod(target) => {
-                if target_method.is_some() {
+            ParsedAttribute::TargetSpecifier(spec) => {
+                if target_spec.is_some() {
                     panic!(
-                        "Multiple call attributes specified for {}",
+                        "Multiple field/call attributes specified for {}",
                         method.sig.ident
                     )
                 }
-                target_method = Some(target);
+                target_spec = Some(spec);
             }
             ParsedAttribute::ThroughTrait(target) => {
                 if target_trait.is_some() {
@@ -379,13 +468,14 @@ pub fn parse_method_attributes<'a>(
         }
     }
 
-    if associated_constant.is_some() && target_method.is_some() {
-        panic!("Cannot use both `call` and `const` attributes.");
+    if associated_constant.is_some() && target_spec.is_some() {
+        panic!("Cannot use both `call`/`field` and `const` attributes.");
     }
 
     MethodAttributes {
         attributes: other.into_iter().collect(),
-        target_method,
+        target_specifier: target_spec,
+        // target_method,
         generate_await,
         expressions: expressions.into(),
         target_trait: target_trait.map(|t| t.type_path),
@@ -425,8 +515,8 @@ pub fn parse_segment_attributes(attrs: &[Attribute]) -> SegmentAttributes {
                 }
                 target_trait = Some(target);
             }
-            ParsedAttribute::TargetMethod(_) => {
-                panic!("Call attribute cannot be specified on a `to <expr>` segment.");
+            ParsedAttribute::TargetSpecifier(_) => {
+                panic!("Field/call attribute cannot be specified on a `to <expr>` segment.");
             }
             ParsedAttribute::ConstantAccess(_) => {
                 panic!("Const attribute cannot be specified on a `to <expr>` segment.");
