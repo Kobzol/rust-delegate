@@ -451,7 +451,7 @@ use syn::{parse_quote, Error, Expr, ExprField, ExprMethodCall, FnArg, GenericPar
 
 use crate::attributes::{
     combine_attributes, parse_method_attributes, parse_segment_attributes, ReturnExpression,
-    SegmentAttributes,
+    SegmentAttributes, TargetSpecifier,
 };
 
 mod attributes;
@@ -895,10 +895,13 @@ pub fn delegate(tokens: TokenStream) -> TokenStream {
 
             // Generate an argument vector from Punctuated list.
             let args: Vec<Expr> = method.arguments.clone().into_iter().collect();
-            let name = match &attributes.target_method {
-                Some(n) => n,
-                None => &input.sig.ident,
+
+            // Get name (or index) of the target method or field
+            let name = match &attributes.target_specifier {
+                Some(target) => target.get_member(&input.sig.ident),
+                None => input.sig.ident.clone().into(),
             };
+
             let inline = if has_inline_attribute(&attributes.attributes) {
                 quote!()
             } else {
@@ -972,7 +975,15 @@ pub fn delegate(tokens: TokenStream) -> TokenStream {
                         get_const(#expr)
                     }}
                 } else if is_method {
-                    quote::quote! { #expr.#name#generics(#(#args),*) }
+                    match &attributes.target_specifier {
+                        None | Some(TargetSpecifier::Method(_)) => {
+                            quote::quote! { #expr.#name#generics(#(#args),*) }
+                        },
+                        Some(TargetSpecifier::Field(target)) => {
+                            let reference = target.reference_tokens();
+                            quote::quote! { #reference#expr.#name }
+                        }
+                    }
                 } else {
                     quote::quote! { #expr::#name#generics(#(#args),*) }
                 };
