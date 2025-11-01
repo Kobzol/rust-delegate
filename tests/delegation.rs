@@ -1,6 +1,11 @@
 use delegate::delegate;
 
 #[test]
+fn test_expansions() {
+    macrotest::expand("tests/expand/*.rs");
+}
+
+#[test]
 fn test_delegation() {
     struct Inner;
 
