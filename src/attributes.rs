@@ -243,35 +243,16 @@ pub enum ReturnExpression {
     Unwrap,
 }
 
-#[derive(Default)]
 pub enum TargetSpecifier {
     Field(GetFieldAttribute),
     Method(CallMethodAttribute),
-    #[default] None,
 }
 
 impl TargetSpecifier {
-    pub fn is_field(&self) -> bool {
-        matches!(self, Self::Field(_))
-    }
-    pub fn get_name<'a>(&'a self, default: &'a syn::Ident) -> &'a syn::Ident {
-        match self {
-            Self::Field(field) => field.name.as_ref().unwrap_or(default),
-            Self::Method(method) => &method.name,
-            Self::None => default,
-        }
-    }
     pub fn name(&self) -> Option<&syn::Ident> {
         match self {
             Self::Field(field) => field.name.as_ref(),
             Self::Method(method) => Some(&method.name),
-            Self::None => None,
-        }
-    }
-    pub fn reference_tokens(&self) -> Option<TokenStream> {
-        match self {
-            Self::Field(field) => field.reference_tokens(),
-            _ => None,
         }
     }
 }
@@ -280,8 +261,6 @@ enum ParsedAttribute {
     ReturnExpression(ReturnExpression),
     Await(bool),
     TargetSpecifier(TargetSpecifier),
-    // TargetField(Option<syn::Ident>),
-    // TargetMethod(syn::Ident),
     ThroughTrait(TraitTarget),
     ConstantAccess(AssociatedConstant),
     Expr(TemplateExpr),
