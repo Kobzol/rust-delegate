@@ -440,10 +440,8 @@
 //! use delegate::delegate;
 //!
 //! struct Datum {
-//!     name: String,
 //!     value: u32,
 //!     error: u32,
-//!     xy: (f32, f32)
 //! }
 //!
 //! struct DatumWrapper(Datum);
@@ -460,15 +458,15 @@
 //!             fn renamed_value(&self) -> u32;
 //!
 //!             /// Get shared reference to a nested field
-//!             #[field(ref value)]
+//!             #[field(&value)]
 //!             fn value_ref(&self) -> &u32;
 //!
 //!             /// Get mutable reference to a nested field
-//!             #[field(ref mut value)]
+//!             #[field(&mut value)]
 //!             fn value_ref_mut(&mut self) -> &mut u32;
 //!
 //!             /// Get mutable reference to a nested field with the same name
-//!             #[field(ref)]
+//!             #[field(&)]
 //!             fn error(&self) -> &u32;
 //!         }
 //!     }
@@ -1017,7 +1015,7 @@ pub fn delegate(tokens: TokenStream) -> TokenStream {
                     match &attributes.target_specifier {
                         None | Some(TargetSpecifier::Method(_)) => {
                             quote::quote! { #expr.#name#generics(#(#args),*) }
-                        },
+                        }
                         Some(TargetSpecifier::Field(target)) => {
                             let reference = target.reference_tokens();
                             quote::quote! { #reference#expr.#name }

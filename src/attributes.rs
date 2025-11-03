@@ -1,7 +1,7 @@
-use std::collections::VecDeque;
-use std::ops::Not;
 use proc_macro2::{Delimiter, TokenStream, TokenTree};
 use quote::ToTokens;
+use std::collections::VecDeque;
+use std::ops::Not;
 use syn::parse::ParseStream;
 use syn::{Attribute, Error, Meta, Path, PathSegment, Token, TypePath};
 
@@ -37,8 +37,6 @@ impl syn::parse::Parse for GetFieldAttribute {
         let mut reference = None;
         if let Ok(ref_) = input.parse::<syn::Token![&]>() {
             reference = Some((ref_, None));
-        } else if let Ok(ref_) = input.parse::<syn::Token![ref]>() {
-            reference = Some((Token![&](ref_.span), None));
         }
         if let Some((_, mut_)) = &mut reference {
             *mut_ = input.parse::<syn::Token![mut]>().ok();
@@ -241,7 +239,10 @@ pub enum TargetSpecifier {
 impl TargetSpecifier {
     pub fn get_member(&self, default: &syn::Ident) -> syn::Member {
         match self {
-            Self::Field(GetFieldAttribute { member: Some(member), .. }) => member.clone(),
+            Self::Field(GetFieldAttribute {
+                member: Some(member),
+                ..
+            }) => member.clone(),
             Self::Field(_) => default.clone().into(),
             Self::Method(method) => method.name.clone().into(),
         }
@@ -285,8 +286,8 @@ fn parse_attributes(
                             GetFieldAttribute::default()
                         } else {
                             attribute
-                            .parse_args::<GetFieldAttribute>()
-                            .expect("Cannot parse `field` attribute")
+                                .parse_args::<GetFieldAttribute>()
+                                .expect("Cannot parse `field` attribute")
                         };
                         let spec = TargetSpecifier::Field(target);
                         Some(ParsedAttribute::TargetSpecifier(spec))
@@ -359,7 +360,6 @@ fn parse_attributes(
 pub struct MethodAttributes<'a> {
     pub attributes: Vec<&'a Attribute>,
     pub target_specifier: Option<TargetSpecifier>,
-    // pub target_method: Option<syn::Ident>,
     pub expressions: VecDeque<ReturnExpression>,
     pub generate_await: Option<bool>,
     pub target_trait: Option<TypePath>,
@@ -445,7 +445,6 @@ pub fn parse_method_attributes<'a>(
     MethodAttributes {
         attributes: other.into_iter().collect(),
         target_specifier: target_spec,
-        // target_method,
         generate_await,
         expressions: expressions.into(),
         target_trait: target_trait.map(|t| t.type_path),

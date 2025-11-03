@@ -1,6 +1,5 @@
 use delegate::delegate;
 struct Datum {
-    name: String,
     value: u32,
     error: u32,
     xy: (f32, f32),
@@ -20,27 +19,17 @@ impl DatumWrapper {
     fn renamed_value(&self) -> u32 {
         self.0.value
     }
-    /// Expands to `&self.0.value` (equivalent to `#[field(ref value)]`)
+    /// Expands to `&self.0.value`
     #[inline]
     fn renamed_value_ref(&self) -> &u32 {
         &self.0.value
     }
-    /// Expands to `&self.0.value` (equivalent to `#[field(&value)]`)
-    #[inline]
-    fn renamed_value_ref_keyword(&self) -> &u32 {
-        &self.0.value
-    }
-    /// Expands to `&mut self.0.value` (equivalent to `#[field(ref mut value)]`)
+    /// Expands to `&mut self.0.value`
     #[inline]
     fn renamed_value_ref_mut(&mut self) -> &mut u32 {
         &mut self.0.value
     }
-    /// Expands to `&mut self.0.value` (equivalent to `#[field(&mut value)]`)
-    #[inline]
-    fn renamed_value_ref_mut_keyword(&mut self) -> &mut u32 {
-        &mut self.0.value
-    }
-    /// Expands to `&self.0.error` (demonstrates `ref` without a field name)
+    /// Expands to `&self.0.error` (demonstrates `&` without a field name)
     #[inline]
     fn error(&self) -> &u32 {
         &self.0.error
