@@ -5,6 +5,7 @@ struct Inner {
     name: String,
     value: u32,
     error: u32,
+    xy: (f32, f32)
 }
 
 struct Outer(Inner);
@@ -42,6 +43,14 @@ impl Outer {
             /// Expands to `&self.0.error` (demonstrates `ref` without a field name)
             #[field(ref)]
             fn error(&self) -> &u32;
+        }
+        to self.0.xy {
+            /// Expands to `self.0.xy.0` (demonstrates unnamed field access by value)
+            #[field(0)]
+            fn x(&self) -> f32;
+            /// Expands to `&self.0.xy.1` (demonstrates unnamed field access by reference)
+            #[field(ref 1)]
+            fn y(&self) -> &f32;
         }
         to self.get_inner() {
             /// Expands to `&self.get_inner().value`
