@@ -1,11 +1,10 @@
-
 use delegate::delegate;
 
 struct Datum {
     name: String,
     value: u32,
     error: u32,
-    xy: (f32, f32)
+    xy: (f32, f32),
 }
 
 struct DatumWrapper(Datum);
@@ -24,11 +23,11 @@ impl DatumWrapper {
             #[field(value)]
             fn renamed_value(&self) -> u32;
 
-            /// Expands to `&self.0.value` (equivalent to `#[field(&value)]`)
+            /// Expands to `&self.0.value`
             #[field(ref value)]
             fn renamed_value_ref(&self) -> &u32;
 
-            /// Expands to `&mut self.0.value` (equivalent to `#[field(&mut value)]`)
+            /// Expands to `&mut self.0.value`
             #[field(ref mut value)]
             fn renamed_value_ref_mut(&mut self) -> &mut u32;
 

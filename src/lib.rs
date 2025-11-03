@@ -443,7 +443,6 @@
 //!     name: String,
 //!     value: u32,
 //!     error: u32,
-//!     xy: (f32, f32)
 //! }
 //!
 //! struct DatumWrapper(Datum);
@@ -1017,7 +1016,7 @@ pub fn delegate(tokens: TokenStream) -> TokenStream {
                     match &attributes.target_specifier {
                         None | Some(TargetSpecifier::Method(_)) => {
                             quote::quote! { #expr.#name#generics(#(#args),*) }
-                        },
+                        }
                         Some(TargetSpecifier::Field(target)) => {
                             let reference = target.reference_tokens();
                             quote::quote! { #reference#expr.#name }
