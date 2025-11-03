@@ -35,9 +35,9 @@ impl GetFieldAttribute {
 impl syn::parse::Parse for GetFieldAttribute {
     fn parse(input: ParseStream) -> Result<Self, Error> {
         let mut reference = None;
-        if let Some(ref_) = input.parse::<syn::Token![&]>().ok() {
+        if let Ok(ref_) = input.parse::<syn::Token![&]>() {
             reference = Some((ref_, None));
-        } else if let Some(ref_) = input.parse::<syn::Token![ref]>().ok() {
+        } else if let Ok(ref_) = input.parse::<syn::Token![ref]>() {
             reference = Some((Token![&](ref_.span), None));
         }
         if let Some((_, mut_)) = &mut reference {
