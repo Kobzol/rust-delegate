@@ -1,5 +1,5 @@
 use std::collections::VecDeque;
-
+use std::ops::Not;
 use proc_macro2::{Delimiter, TokenStream, TokenTree};
 use quote::ToTokens;
 use syn::parse::ParseStream;
@@ -20,7 +20,7 @@ impl syn::parse::Parse for CallMethodAttribute {
 #[derive(Default, Clone)]
 pub struct GetFieldAttribute {
     reference: Option<(Token![&], Option<Token![mut]>)>,
-    name: Option<syn::Ident>,
+    member: Option<syn::Member>,
 }
 
 impl GetFieldAttribute {
@@ -43,18 +43,8 @@ impl syn::parse::Parse for GetFieldAttribute {
         if let Some((_, mut_)) = &mut reference {
             *mut_ = input.parse::<syn::Token![mut]>().ok();
         }
-        // let mut reference = None;
-        // if let Some(ref_) = input.parse::<syn::Token![ref]>().ok() {
-        //     if let Some(mut_) = input.parse::<syn::Token![mut]>().ok() {
-        //         reference = Some((ref_, Some(mut_)));
-        //     } else {
-        //         reference = Some((ref_, None));
-        //     }
-        // };
-        Ok(GetFieldAttribute {
-            reference,
-            name: input.parse()?,
-        })
+        let member = input.is_empty().not().then(|| input.parse()).transpose()?;
+        Ok(GetFieldAttribute { reference, member })
     }
 }
 
@@ -249,10 +239,11 @@ pub enum TargetSpecifier {
 }
 
 impl TargetSpecifier {
-    pub fn name(&self) -> Option<&syn::Ident> {
+    pub fn get_member(&self, default: &syn::Ident) -> syn::Member {
         match self {
-            Self::Field(field) => field.name.as_ref(),
-            Self::Method(method) => Some(&method.name),
+            Self::Field(GetFieldAttribute { member: Some(member), .. }) => member.clone(),
+            Self::Field(_) => default.clone().into(),
+            Self::Method(method) => method.name.clone().into(),
         }
     }
 }

@@ -896,11 +896,12 @@ pub fn delegate(tokens: TokenStream) -> TokenStream {
             // Generate an argument vector from Punctuated list.
             let args: Vec<Expr> = method.arguments.clone().into_iter().collect();
 
-            // Get name of the target method or field
+            // Get name (or index) of the target method or field
             let name = match &attributes.target_specifier {
-                Some(target) => target.name().unwrap_or(&input.sig.ident),
-                None => &input.sig.ident,
+                Some(target) => target.get_member(&input.sig.ident),
+                None => input.sig.ident.clone().into(),
             };
+
             let inline = if has_inline_attribute(&attributes.attributes) {
                 quote!()
             } else {
