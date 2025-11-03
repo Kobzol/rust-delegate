@@ -1,17 +1,17 @@
 
 use delegate::delegate;
 
-struct Inner {
+struct Datum {
     name: String,
     value: u32,
     error: u32,
     xy: (f32, f32)
 }
 
-struct Outer(Inner);
+struct DatumWrapper(Datum);
 
-impl Outer {
-    fn get_inner(&self) -> &Inner {
+impl DatumWrapper {
+    fn get_inner(&self) -> &Datum {
         &self.0
     }
     delegate! {
