@@ -433,7 +433,46 @@
 //! }
 //!
 //! assert_eq!(Enum::A(A).get_toto(), <A as WithConst>::TOTO);
+//! ```
 //!
+//! - Delegate fields
+//! ```rust
+//! use delegate::delegate;
+//!
+//! struct Datum {
+//!     name: String,
+//!     value: u32,
+//!     error: u32,
+//!     xy: (f32, f32)
+//! }
+//!
+//! struct DatumWrapper(Datum);
+//!
+//! impl DatumWrapper {
+//!     delegate! {
+//!         to self.0 {
+//!             /// Get the value of a nested field with the same name
+//!             #[field]
+//!             fn value(&self) -> u32;
+//!
+//!             /// Get the value of a nested field with a different name
+//!             #[field(value)]
+//!             fn renamed_value(&self) -> u32;
+//!
+//!             /// Get shared reference to a nested field
+//!             #[field(ref value)]
+//!             fn value_ref(&self) -> &u32;
+//!
+//!             /// Get mutable reference to a nested field
+//!             #[field(ref mut value)]
+//!             fn value_ref_mut(&mut self) -> &mut u32;
+//!
+//!             /// Get mutable reference to a nested field with the same name
+//!             #[field(ref)]
+//!             fn error(&self) -> &u32;
+//!         }
+//!     }
+//! }
 //! ```
 
 extern crate proc_macro;
