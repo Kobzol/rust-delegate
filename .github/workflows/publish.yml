@@ -25,6 +25,8 @@ jobs:
         name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
       - run: cargo test
+      - uses: rust-lang/crates-io-auth-action@v1
+        id: auth
       - name: Run release-plz
         # 0.5.118
         uses: release-plz/action@01df7609d1a7310c0776a102df00daf509d56e33
