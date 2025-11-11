@@ -26,8 +26,8 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
       - run: cargo test
       - name: Run release-plz
-        # 0.5.50
-        uses: release-plz/action@63ab0c2746bedc448370bad4b0b3d536458398b0
+        # 0.5.118
+        uses: release-plz/action@01df7609d1a7310c0776a102df00daf509d56e33
         with:
           command: release
         env:
@@ -48,8 +48,8 @@ jobs:
       - *checkout
       - *install-rust
       - name: Run release-plz
-        # 0.5.50
-        uses: release-plz/action@63ab0c2746bedc448370bad4b0b3d536458398b0
+        # 0.5.118
+        uses: release-plz/action@01df7609d1a7310c0776a102df00daf509d56e33
         with:
           command: release-pr
         env:
