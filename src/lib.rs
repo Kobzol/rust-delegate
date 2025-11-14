@@ -459,15 +459,15 @@
 //!             fn renamed_value(&self) -> u32;
 //!
 //!             /// Get shared reference to a nested field
-//!             #[field(ref value)]
+//!             #[field(&value)]
 //!             fn value_ref(&self) -> &u32;
 //!
 //!             /// Get mutable reference to a nested field
-//!             #[field(ref mut value)]
+//!             #[field(&mut value)]
 //!             fn value_ref_mut(&mut self) -> &mut u32;
 //!
 //!             /// Get mutable reference to a nested field with the same name
-//!             #[field(ref)]
+//!             #[field(&)]
 //!             fn error(&self) -> &u32;
 //!         }
 //!     }

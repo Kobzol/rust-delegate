@@ -37,8 +37,6 @@ impl syn::parse::Parse for GetFieldAttribute {
         let mut reference = None;
         if let Ok(ref_) = input.parse::<syn::Token![&]>() {
             reference = Some((ref_, None));
-        } else if let Ok(ref_) = input.parse::<syn::Token![ref]>() {
-            reference = Some((Token![&](ref_.span), None));
         }
         if let Some((_, mut_)) = &mut reference {
             *mut_ = input.parse::<syn::Token![mut]>().ok();
