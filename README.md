@@ -494,6 +494,20 @@ impl DatumWrapper {
 }
 ```
 
+## Development
+
+This project utilizes a standard test suite for quality control, as well as a set
+of "expansion" tests that utilize the `macrotest` crate to ensure the macro expands
+as expected. PRs implementing new features should add both standard and expansion
+tests where appropriate.
+
+To add an expansion test, place a Rust source file in the `tests/expand/` directory
+with methods demonstrating the new feature. Next, run `cargo test` to run the test
+suite and generate a `*.expanded.rs` file in the same directory. Next, carefully
+inspect the contents of the generated file to confirm that all methods expanded as
+expected. Finally, commit both files to the git repository. Future test suite runs
+will now include expanding the source file and comparing it to the expanded file.
+
 ## License
 
 Licensed under either of
