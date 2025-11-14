@@ -435,7 +435,7 @@
 //! assert_eq!(Enum::A(A).get_toto(), <A as WithConst>::TOTO);
 //! ```
 //!
-//! - Delegate fields
+//! - Delegate to fields
 //! ```rust
 //! use delegate::delegate;
 //!
