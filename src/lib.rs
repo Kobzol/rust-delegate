@@ -440,7 +440,6 @@
 //! use delegate::delegate;
 //!
 //! struct Datum {
-//!     name: String,
 //!     value: u32,
 //!     error: u32,
 //! }

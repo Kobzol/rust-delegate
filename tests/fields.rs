@@ -1,7 +1,6 @@
 use delegate::delegate;
 
 struct Datum {
-    name: String,
     value: u32,
     error: u32,
     xy: (f32, f32),
@@ -43,13 +42,17 @@ impl DatumWrapper {
             #[field(&1)]
             fn y(&self) -> &f32;
         }
+        to self.get_inner() {
+            /// Expands to `&self.get_inner().value`
+            #[field(&value)]
+            fn value_ref_via_get_inner(&self) -> &u32;
+        }
     }
 }
 
 #[test]
 fn test_fields() {
     let mut wrapper = DatumWrapper(Datum {
-        name: "foo".to_string(),
         value: 1,
         error: 2,
         xy: (3.0, 4.0),
@@ -58,6 +61,7 @@ fn test_fields() {
     assert_eq!(wrapper.renamed_value(), wrapper.0.value);
     assert_eq!(wrapper.renamed_value_ref(), &wrapper.0.value);
     assert_eq!(wrapper.renamed_value_ref_mut(), &mut 1);
+    assert_eq!(wrapper.value_ref_via_get_inner(), &1);
     assert_eq!(wrapper.error(), &wrapper.0.error);
     assert_eq!(wrapper.x(), wrapper.0.xy.0);
     assert_eq!(wrapper.y(), &wrapper.0.xy.1);

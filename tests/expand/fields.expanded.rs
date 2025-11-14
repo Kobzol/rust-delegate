@@ -1,6 +1,5 @@
 use delegate::delegate;
 struct Datum {
-    name: String,
     value: u32,
     error: u32,
     xy: (f32, f32),
