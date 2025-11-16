@@ -456,6 +456,58 @@ impl Enum {
 assert_eq!(Enum::A(A).get_toto(), <A as WithConst>::TOTO);
 ```
 
+### Delegate to fields
+```rust
+use delegate::delegate;
+
+struct Datum {
+    value: u32,
+    error: u32,
+}
+
+struct DatumWrapper(Datum);
+
+impl DatumWrapper {
+    delegate! {
+        to self.0 {
+            /// Get the value of a nested field with the same name
+            #[field]
+            fn value(&self) -> u32;
+
+            /// Get the value of a nested field with a different name
+            #[field(value)]
+            fn renamed_value(&self) -> u32;
+
+            /// Get shared reference to a nested field
+            #[field(&value)]
+            fn value_ref(&self) -> &u32;
+
+            /// Get mutable reference to a nested field
+            #[field(&mut value)]
+            fn value_ref_mut(&mut self) -> &mut u32;
+
+            /// Get mutable reference to a nested field with the same name
+            #[field(&)]
+            fn error(&self) -> &u32;
+        }
+    }
+}
+```
+
+## Development
+
+This project uses a standard test suite for quality control, as well as a set of
+"expansion" tests that utilize the `macrotest` crate to ensure the macro expands
+as expected. PRs implementing new features should add both standard and expansion
+tests where appropriate.
+
+To add an expansion test, place a Rust source file in the `tests/expand/` directory
+with methods demonstrating the new feature. Next, run `cargo test` to run the test
+suite and generate a `*.expanded.rs` file in the same directory. Next, carefully
+inspect the contents of the generated file to confirm that all methods expanded as
+expected. Finally, commit both files to the git repository. Future test suite runs
+will now include expanding the source file and comparing it to the expanded file.
+
 ## License
 
 Licensed under either of

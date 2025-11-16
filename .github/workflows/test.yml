@@ -26,6 +26,12 @@ jobs:
           override: true
           components: rustfmt, clippy
 
+      - name: Install cargo-expand
+        uses: actions-rs/cargo@v1
+        with:
+          command: install
+          args: --locked --version 1.0.118 cargo-expand
+
       - name: Build
         uses: actions-rs/cargo@v1
         with:
