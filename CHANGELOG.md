@@ -9,22 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.13.5](https://github.com/Kobzol/rust-delegate/compare/v0.13.4...v0.13.5) - 2025-11-17
 
-### Other
+### New features
 
-- Enable changelog
-- Merge pull request #95 from Kobzol/update-changelog
-- Update changelog
-- Install cargo-expand in publish workflow
-- Merge pull request #88 from JRRudy1/fields
-- Added `#[field]` example and Development section to README.md
-- Removed support for `#[field(ref ...)]` syntax in favor of `#[field(& ...)]`
-- Added `#[field]` example to the module docs
-- Added standard and macro expansion tests for the `#[field]` attribute
-- Added `cargo-expand` installation to CI
-- Implemented `#[field]` attribute
-# Dev
+- Implement support for delegating to fields (#88 from JRRudy1).
 
-- Allow delegating to fields (implemented by @JRRudy1 in https://github.com/Kobzol/rust-delegate/pull/88).
+### Internal
+
+- Start using [release-plz](https://release-plz.dev/) for releases, together with crates.io Trusted Publishing.
 
 # 0.13.4 (14. 7. 2025)
 
