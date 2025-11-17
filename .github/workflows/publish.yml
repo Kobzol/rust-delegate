@@ -24,6 +24,11 @@ jobs:
       - &install-rust
         name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
+      - name: Install cargo-expand
+        uses: actions-rs/cargo@v1
+        with:
+          command: install
+          args: --locked --version 1.0.118 cargo-expand
       - run: cargo test
       - uses: rust-lang/crates-io-auth-action@v1
         id: auth
