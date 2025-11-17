@@ -1,3 +1,27 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+## [0.13.5](https://github.com/Kobzol/rust-delegate/compare/v0.13.4...v0.13.5) - 2025-11-17
+
+### Other
+
+- Enable changelog
+- Merge pull request #95 from Kobzol/update-changelog
+- Update changelog
+- Install cargo-expand in publish workflow
+- Merge pull request #88 from JRRudy1/fields
+- Added `#[field]` example and Development section to README.md
+- Removed support for `#[field(ref ...)]` syntax in favor of `#[field(& ...)]`
+- Added `#[field]` example to the module docs
+- Added standard and macro expansion tests for the `#[field]` attribute
+- Added `cargo-expand` installation to CI
+- Implemented `#[field]` attribute
 # Dev
 
 - Allow delegating to fields (implemented by @JRRudy1 in https://github.com/Kobzol/rust-delegate/pull/88).
