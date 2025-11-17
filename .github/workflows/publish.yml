@@ -6,14 +6,10 @@ on:
       - main
 
 jobs:
-  # Release unpublished packages.
-  release:
-    name: Release-plz release
+  test:
+    name: Release test
     runs-on: ubuntu-latest
     if: ${{ github.repository_owner == 'kobzol' }}
-    permissions:
-      contents: write
-      id-token: write
     steps:
       - &checkout
         name: Checkout repository
@@ -30,6 +26,19 @@ jobs:
           command: install
           args: --locked --version 1.0.118 cargo-expand
       - run: cargo test
+  # Release unpublished packages.
+  release:
+    name: Release-plz release
+    runs-on: ubuntu-latest
+    if: ${{ github.repository_owner == 'kobzol' }}
+    needs:
+      - test
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - *checkout
+      - *install-rust
       - uses: rust-lang/crates-io-auth-action@v1
         id: auth
       - name: Run release-plz
