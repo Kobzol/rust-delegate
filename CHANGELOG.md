@@ -1,6 +1,21 @@
-# Dev
+# Changelog
 
-- Allow delegating to fields (implemented by @JRRudy1 in https://github.com/Kobzol/rust-delegate/pull/88).
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+## [0.13.5](https://github.com/Kobzol/rust-delegate/compare/v0.13.4...v0.13.5) - 2025-11-17
+
+### New features
+
+- Implement support for delegating to fields (#88 from JRRudy1).
+
+### Internal
+
+- Start using [release-plz](https://release-plz.dev/) for releases, together with crates.io Trusted Publishing.
 
 # 0.13.4 (14. 7. 2025)
 
