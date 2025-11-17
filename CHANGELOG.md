@@ -1,6 +1,10 @@
+# Dev
+
+- Allow delegating to fields (implemented by @JRRudy1 in https://github.com/Kobzol/rust-delegate/pull/88).
+
 # 0.13.4 (14. 7. 2025)
 
-- Do not explicitly forward lifetime arguments when calling delegated functions (https://github.com/Kobzol/rust-delegate/issues/85#)
+- Do not explicitly forward lifetime arguments when calling delegated functions (https://github.com/Kobzol/rust-delegate/issues/85).
 
 # 0.13.3 (25. 3. 2025)
 
