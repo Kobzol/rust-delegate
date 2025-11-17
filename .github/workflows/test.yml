@@ -1,6 +1,6 @@
 # Based on https://github.com/actions-rs/meta/blob/master/recipes/matrix.md
 
-on: [push, pull_request]
+on: [ push, pull_request ]
 
 name: Tests
 
@@ -25,6 +25,8 @@ jobs:
           toolchain: ${{ matrix.rust }}
           override: true
           components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
 
       - name: Install cargo-expand
         uses: actions-rs/cargo@v1
