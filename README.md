@@ -494,6 +494,81 @@ impl DatumWrapper {
 }
 ```
 
+### Delegate trait implementations
+Use `#[delegatable_trait]` and `#[delegate_trait]` to automatically delegate
+missing trait methods to an inner field. Only the methods you explicitly write
+are kept; everything else is forwarded.
+
+First, annotate the trait with `#[delegatable_trait]`:
+```rust
+use delegate::{delegatable_trait, delegate_trait};
+
+#[delegatable_trait]
+trait Greet {
+    fn hello(&self) -> String;
+    fn goodbye(&self) -> String;
+}
+```
+
+Then, when implementing the trait, use `#[delegate_trait(target = field_name)]`
+and only write the methods you want to override. Any methods you leave out are
+automatically delegated to `self.field_name`:
+```rust
+struct Inner;
+impl Greet for Inner {
+    fn hello(&self) -> String { "hello from inner".into() }
+    fn goodbye(&self) -> String { "goodbye from inner".into() }
+}
+
+struct Wrapper { inner: Inner }
+
+// Only `hello` is overridden; `goodbye` is delegated to self.inner
+#[delegate_trait(target = inner)]
+impl Greet for Wrapper {
+    fn hello(&self) -> String {
+        "hello from wrapper".into()
+    }
+}
+
+let w = Wrapper { inner: Inner };
+assert_eq!(w.hello(), "hello from wrapper");
+assert_eq!(w.goodbye(), "goodbye from inner");
+```
+
+You can also delegate all methods by leaving the impl block empty:
+```rust
+struct MathWrapper { inner: MathImpl }
+
+#[delegate_trait(target = inner)]
+impl Math for MathWrapper {}
+```
+
+This works with generic structs as well:
+```rust
+#[delegatable_trait]
+trait Len {
+    fn len(&self) -> usize;
+    fn is_empty(&self) -> bool;
+}
+
+struct GenericWrapper<T: Len> { inner: T }
+
+#[delegate_trait(target = inner)]
+impl<T: Len> Len for GenericWrapper<T> {
+    fn is_empty(&self) -> bool {
+        self.inner.len() > 10 // custom override
+    }
+    // len() is automatically delegated
+}
+```
+
+> Note: `target` takes a field name (e.g., `inner`), not a field expression
+> (e.g., `self.inner`). The macro generates `self.<field>` internally.
+
+Methods with default bodies in the trait are *not* delegated — they keep
+their default implementation. Only required methods (those without a default
+body) are delegated to the target field.
+
 ## Development
 
 This project uses a standard test suite for quality control, as well as a set of
