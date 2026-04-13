@@ -472,6 +472,48 @@
 //!     }
 //! }
 //! ```
+//!
+//! - Delegate trait implementations
+//!
+//! Use `#[delegatable_trait]` and `#[delegate_trait]` to automatically delegate
+//! missing trait methods to an inner field. Annotate the trait with
+//! `#[delegatable_trait]`, then use `#[delegate_trait(target = field_name)]` on
+//! the impl block. Only write the methods you want to override; everything else
+//! is forwarded to `self.field_name`.
+//!
+//! Methods with default bodies in the trait are *not* delegated — they keep
+//! their default implementation. Only required methods (those without a default
+//! body) are delegated to the target field.
+//!
+//! ```rust
+//! use delegate::{delegatable_trait, delegate_trait};
+//!
+//! #[delegatable_trait]
+//! trait Greet {
+//!     fn hello(&self) -> String;
+//!     fn goodbye(&self) -> String;
+//! }
+//!
+//! struct Inner;
+//! impl Greet for Inner {
+//!     fn hello(&self) -> String { "hello from inner".into() }
+//!     fn goodbye(&self) -> String { "goodbye from inner".into() }
+//! }
+//!
+//! struct Wrapper { inner: Inner }
+//!
+//! // Only `hello` is overridden; `goodbye` is delegated to self.inner
+//! #[delegate_trait(target = inner)]
+//! impl Greet for Wrapper {
+//!     fn hello(&self) -> String {
+//!         "hello from wrapper".into()
+//!     }
+//! }
+//!
+//! let w = Wrapper { inner: Inner };
+//! assert_eq!(w.hello(), "hello from wrapper");
+//! assert_eq!(w.goodbye(), "goodbye from inner");
+//! ```
 
 extern crate proc_macro;
 use std::mem;
@@ -492,6 +534,7 @@ use crate::attributes::{
 };
 
 mod attributes;
+mod delegate_trait;
 
 mod kw {
     syn::custom_keyword!(to);
@@ -1174,4 +1217,14 @@ fn tolerant_outer_attributes(input: ParseStream) -> syn::Result<Vec<syn::Attribu
         attrs.push(input.call(tolerant_attr)?);
     }
     Ok(attrs)
+}
+
+#[proc_macro_attribute]
+pub fn delegatable_trait(attr: TokenStream, item: TokenStream) -> TokenStream {
+    delegate_trait::delegatable_trait_impl(attr, item)
+}
+
+#[proc_macro_attribute]
+pub fn delegate_trait(attr: TokenStream, item: TokenStream) -> TokenStream {
+    delegate_trait::delegate_trait_impl(attr, item)
 }
